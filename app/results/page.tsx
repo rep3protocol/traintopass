@@ -26,6 +26,7 @@ function genderLabel(g: AnalyzeResponseBody["gender"] | undefined): string {
 }
 
 const STORAGE_KEY = "aft-forge-result";
+const UNLOCK_STORAGE_KEY = "aft-forge-unlocked";
 
 function badgeClasses(status: "pass" | "borderline" | "fail") {
   if (status === "pass") return "border-forge-accent text-forge-accent";
@@ -104,6 +105,8 @@ function SdcNoEquipmentAltSection() {
 export default function ResultsPage() {
   const router = useRouter();
   const [data, setData] = useState<AnalyzeResponseBody | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   useEffect(() => {
     const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -111,12 +114,59 @@ export default function ResultsPage() {
       router.replace("/calculate");
       return;
     }
+    let parsed: AnalyzeResponseBody;
     try {
-      setData(JSON.parse(raw) as AnalyzeResponseBody);
+      parsed = JSON.parse(raw) as AnalyzeResponseBody;
     } catch {
       router.replace("/calculate");
+      return;
+    }
+    setData(parsed);
+
+    if (sessionStorage.getItem(UNLOCK_STORAGE_KEY) === "true") {
+      setUnlocked(true);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    const unlockedParam = params.get("unlocked");
+    if (sessionId && unlockedParam === "true") {
+      void (async () => {
+        try {
+          const res = await fetch("/api/verify-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: sessionId }),
+          });
+          const json = (await res.json()) as { unlocked?: boolean };
+          if (json.unlocked) {
+            sessionStorage.setItem(UNLOCK_STORAGE_KEY, "true");
+            setUnlocked(true);
+          }
+        } finally {
+          router.replace("/results");
+        }
+      })();
     }
   }, [router]);
+
+  async function handleCheckout() {
+    setCheckoutLoading(true);
+    try {
+      const res = await fetch("/api/create-checkout-session", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        return;
+      }
+      const body = (await res.json()) as { url?: string; error?: string };
+      if (body.url) {
+        window.location.assign(body.url);
+      }
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
 
   if (!data) {
     return (
@@ -236,35 +286,43 @@ export default function ResultsPage() {
           <WeekBlock title="Week 1" body={data.weeks.week1} />
           <WeekBlock title="Week 2" body={data.weeks.week2} />
 
-          <div className="relative border border-forge-border bg-forge-panel overflow-hidden">
-            <div className="p-4 sm:p-6 blur-md select-none pointer-events-none opacity-40">
-              <h3 className="font-heading text-2xl text-forge-accent tracking-wide">
-                Week 3 &amp; 4
-              </h3>
-              <div className="mt-4 text-sm text-neutral-300 whitespace-pre-wrap leading-relaxed">
-                {data.weeks.week3}
-                {"\n\n"}
-                {data.weeks.week4}
+          {unlocked ? (
+            <WeekBlock
+              title="Week 3 & 4"
+              body={`${data.weeks.week3}\n\n${data.weeks.week4}`}
+            />
+          ) : (
+            <div className="relative border border-forge-border bg-forge-panel overflow-hidden">
+              <div className="p-4 sm:p-6 blur-md select-none pointer-events-none opacity-40">
+                <h3 className="font-heading text-2xl text-forge-accent tracking-wide">
+                  Week 3 &amp; 4
+                </h3>
+                <div className="mt-4 text-sm text-neutral-300 whitespace-pre-wrap leading-relaxed">
+                  {data.weeks.week3}
+                  {"\n\n"}
+                  {data.weeks.week4}
+                </div>
+              </div>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-forge-bg/80 px-6 text-center">
+                <div className="max-w-sm space-y-2">
+                  <p className="font-heading text-xl sm:text-2xl text-white tracking-wide">
+                    Unlock Week 3 &amp; 4 — $7/mo
+                  </p>
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    Full 4-week breakdown · PDF export · Yours to keep
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCheckout()}
+                  disabled={checkoutLoading}
+                  className="border-2 border-forge-border px-8 py-3 text-xs font-semibold uppercase tracking-widest text-neutral-400 disabled:cursor-not-allowed"
+                >
+                  {checkoutLoading ? "Loading…" : "Unlock Full Plan — $7/mo"}
+                </button>
               </div>
             </div>
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-forge-bg/80 px-6 text-center">
-              <div className="max-w-sm space-y-2">
-                <p className="font-heading text-xl sm:text-2xl text-white tracking-wide">
-                  Unlock Week 3 &amp; 4 — $7/mo
-                </p>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Full 4-week breakdown · PDF export · Yours to keep
-                </p>
-              </div>
-              <button
-                type="button"
-                className="border-2 border-forge-border px-8 py-3 text-xs font-semibold uppercase tracking-widest text-neutral-400 cursor-not-allowed"
-                disabled
-              >
-                Coming soon
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </main>
     </div>
