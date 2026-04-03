@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --forge-bg: #0a0a0a;
+  --forge-panel: #161616;
+  --forge-border: #2a2a2a;
+  --forge-accent: #4ade80;
+}
+
+body {
+  color: #e5e5e5;
+  background: var(--forge-bg);
+  font-family: var(--font-barlow), system-ui, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
