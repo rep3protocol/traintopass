@@ -9,6 +9,7 @@ import {
   type EventKey,
 } from "@/lib/aft-scoring";
 import type { AnalyzeResponseBody } from "@/lib/analyze-types";
+import { downloadTrainingPlanPdf } from "@/lib/generate-plan-pdf";
 
 function isTimedEvent(key: EventKey): boolean {
   return key === "sdc" || key === "plk" || key === "twoMR";
@@ -287,10 +288,19 @@ export default function ResultsPage() {
           <WeekBlock title="Week 2" body={data.weeks.week2} />
 
           {unlocked ? (
-            <WeekBlock
-              title="Week 3 & 4"
-              body={`${data.weeks.week3}\n\n${data.weeks.week4}`}
-            />
+            <>
+              <WeekBlock
+                title="Week 3 & 4"
+                body={`${data.weeks.week3}\n\n${data.weeks.week4}`}
+              />
+              <button
+                type="button"
+                onClick={() => downloadTrainingPlanPdf(data)}
+                className="border-2 border-[#4ade80] bg-[#4ade80] px-8 py-3 text-xs font-semibold uppercase tracking-widest text-black"
+              >
+                ⬇ Download Full Plan (PDF)
+              </button>
+            </>
           ) : (
             <div className="relative border border-forge-border bg-forge-panel overflow-hidden">
               <div className="p-4 sm:p-6 blur-md select-none pointer-events-none opacity-40">
