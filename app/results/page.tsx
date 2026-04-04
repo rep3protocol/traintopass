@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -20,7 +21,14 @@ import {
 import { PlanWeekMarkdown } from "@/components/plan-week-markdown";
 import { ProgressChart } from "@/components/progress-chart";
 import { downloadTrainingPlanPdf } from "@/lib/generate-plan-pdf";
-import { appendHistoryFromResult, clearHistory, readHistory, type HistoryEntry } from "@/lib/history";
+import {
+  appendHistoryFromResult,
+  clearHistory,
+  isHistoryOverallPass,
+  mapDbRowToHistoryEntry,
+  readHistory,
+  type HistoryEntry,
+} from "@/lib/history";
 import {
   LS_FREE_RESULTS_EMAIL_KEY,
   LS_PLAN_EMAIL_KEY,
@@ -163,6 +171,7 @@ function SdcNoEquipmentAltSection() {
 
 export default function ResultsPage() {
   const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
   const shareCardRef = useRef<HTMLDivElement>(null);
   const leaderboardSent = useRef(false);
 
@@ -202,8 +211,100 @@ export default function ResultsPage() {
     } catch {
       /* ignore */
     }
-    setHistory(readHistory());
   }, []);
+
+  useEffect(() => {
+    if (sessionStatus === "loading") return;
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem(STORAGE_NEW_RUN_FLAG) === "1") return;
+    if (!session?.user) {
+      setHistory(readHistory());
+      return;
+    }
+    void (async () => {
+      try {
+        const res = await fetch("/api/history");
+        if (!res.ok) throw new Error();
+        const json = (await res.json()) as {
+          entries?: Parameters<typeof mapDbRowToHistoryEntry>[0][];
+        };
+        const entries = (json.entries ?? []).map((row) =>
+          mapDbRowToHistoryEntry(row)
+        );
+        setHistory(entries.slice(0, 5));
+      } catch {
+        setHistory(readHistory());
+      }
+    })();
+  }, [session, sessionStatus]);
+
+  useEffect(() => {
+    if (!data || sessionStatus === "loading") return;
+    if (sessionStorage.getItem(STORAGE_NEW_RUN_FLAG) !== "1") return;
+
+    if (!session?.user) {
+      appendHistoryFromResult(data);
+      sessionStorage.removeItem(STORAGE_NEW_RUN_FLAG);
+      setHistory(readHistory());
+      return;
+    }
+
+    appendHistoryFromResult(data);
+    sessionStorage.removeItem(STORAGE_NEW_RUN_FLAG);
+    void (async () => {
+      try {
+        await fetch("/api/history/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ result: data }),
+        });
+      } catch {
+        /* silent */
+      }
+      try {
+        const res = await fetch("/api/history");
+        if (!res.ok) throw new Error();
+        const json = (await res.json()) as {
+          entries?: Parameters<typeof mapDbRowToHistoryEntry>[0][];
+        };
+        const entries = (json.entries ?? []).map((row) =>
+          mapDbRowToHistoryEntry(row)
+        );
+        setHistory(entries.slice(0, 5));
+      } catch {
+        setHistory(readHistory());
+      }
+    })();
+  }, [data, session, sessionStatus]);
+
+  useEffect(() => {
+    if (sessionStatus === "loading" || !session?.user) return;
+    void (async () => {
+      try {
+        const res = await fetch("/api/verify-subscription");
+        if (!res.ok) return;
+        const json = (await res.json()) as { active?: boolean };
+        if (!json.active) return;
+        setUnlocked(true);
+        setPlanGateDone(true);
+        try {
+          sessionStorage.setItem(STORAGE_UNLOCK_KEY, "true");
+          if (!sessionStorage.getItem(SESSION_TRAINING_DAYS_KEY)) {
+            sessionStorage.setItem(SESSION_TRAINING_DAYS_KEY, "4");
+          }
+          const raw = sessionStorage.getItem(SESSION_TRAINING_DAYS_KEY);
+          if (raw === "3" || raw === "4" || raw === "5" || raw === "6") {
+            setSelectedTrainingDays(Number(raw) as TrainingDaysPerWeek);
+          }
+        } catch {
+          /* ignore */
+        }
+        setPaidPlanReady(true);
+      } catch {
+        /* silent */
+      }
+    })();
+  }, [session, sessionStatus]);
 
   useEffect(() => {
     const raw = sessionStorage.getItem(STORAGE_RESULT_KEY);
@@ -222,12 +323,6 @@ export default function ResultsPage() {
 
     if (isAnalyzeError(parsed)) {
       return;
-    }
-
-    if (sessionStorage.getItem(STORAGE_NEW_RUN_FLAG) === "1") {
-      appendHistoryFromResult(parsed);
-      sessionStorage.removeItem(STORAGE_NEW_RUN_FLAG);
-      setHistory(readHistory());
     }
 
     if (sessionStorage.getItem(STORAGE_UNLOCK_KEY) === "true") {
@@ -907,13 +1002,11 @@ export default function ResultsPage() {
           ) : (
             <ul className="space-y-3">
               {history.map((h, idx) => {
-                const pass =
-                  Object.values(h.eventScores).every((s) => s >= 60);
-                return (
-                  <li
-                    key={h.timestamp}
-                    className="border border-forge-border bg-forge-panel px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs"
-                  >
+                const pass = isHistoryOverallPass(h.eventScores);
+                const rowClass =
+                  "border border-forge-border bg-forge-panel px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs";
+                const content = (
+                  <>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-neutral-400">{h.date}</span>
                       {idx === 0 ? (
@@ -937,6 +1030,25 @@ export default function ResultsPage() {
                     >
                       {pass ? "Pass" : "Fail"}
                     </span>
+                    {h.historyId ? (
+                      <span className="text-[10px] text-neutral-600 uppercase tracking-wider">
+                        Summary →
+                      </span>
+                    ) : null}
+                  </>
+                );
+                return (
+                  <li key={h.historyId ?? h.timestamp}>
+                    {h.historyId ? (
+                      <Link
+                        href={`/history/${h.historyId}`}
+                        className={`${rowClass} hover:border-forge-accent/50 block`}
+                      >
+                        {content}
+                      </Link>
+                    ) : (
+                      <div className={rowClass}>{content}</div>
+                    )}
                   </li>
                 );
               })}

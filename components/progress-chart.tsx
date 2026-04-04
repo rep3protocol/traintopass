@@ -86,11 +86,19 @@ export function ProgressChart({ history }: Props) {
           strokeLinecap="round"
         />
         {pts.map((p) => (
-          <circle key={p.entry.timestamp} cx={p.x} cy={p.y} r={4} fill="#0a0a0a" stroke="currentColor" strokeWidth={2} />
+          <circle
+            key={p.entry.historyId ?? p.entry.timestamp}
+            cx={p.x}
+            cy={p.y}
+            r={4}
+            fill="#0a0a0a"
+            stroke="currentColor"
+            strokeWidth={2}
+          />
         ))}
         {pts.map((p) => (
           <text
-            key={`l-${p.entry.timestamp}`}
+            key={`l-${p.entry.historyId ?? p.entry.timestamp}`}
             x={p.x}
             y={H - 8}
             fill="#a3a3a3"

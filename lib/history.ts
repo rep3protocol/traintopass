@@ -9,6 +9,8 @@ export type HistoryEntry = {
   totalScore: number;
   eventScores: Record<EventKey, number>;
   timestamp: number;
+  /** Present when loaded from the database */
+  historyId?: string;
 };
 
 const MAX = 5;
@@ -43,6 +45,38 @@ export function clearHistory(): void {
   }
 }
 
+export function mapDbRowToHistoryEntry(row: {
+  id: string;
+  age_group: string;
+  gender: string;
+  total_score: number;
+  event_scores: Record<string, unknown>;
+  created_at: string | Date;
+}): HistoryEntry {
+  const ts =
+    row.created_at instanceof Date
+      ? row.created_at.getTime()
+      : new Date(row.created_at).getTime();
+  const eventScores = {} as Record<EventKey, number>;
+  for (const k of EVENT_ORDER) {
+    const v = row.event_scores[k];
+    if (typeof v === "number") eventScores[k] = v;
+  }
+  return {
+    date: new Date(ts).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }),
+    ageGroup: row.age_group,
+    gender: row.gender,
+    totalScore: row.total_score,
+    eventScores,
+    timestamp: ts,
+    historyId: row.id,
+  };
+}
+
 export function appendHistoryFromResult(data: AnalyzeResponseBody): void {
   const eventScores = {} as Record<EventKey, number>;
   for (const k of EVENT_ORDER) {
@@ -69,4 +103,8 @@ export function appendHistoryFromResult(data: AnalyzeResponseBody): void {
   } catch {
     /* ignore */
   }
+}
+
+export function isHistoryOverallPass(eventScores: Record<EventKey, number>): boolean {
+  return EVENT_ORDER.every((k) => (eventScores[k] ?? 0) >= 60);
 }

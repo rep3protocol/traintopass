@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { auth } from "@/auth";
 
 export async function POST(req: Request) {
   const secret = process.env.STRIPE_SECRET_KEY;
@@ -9,6 +10,8 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  const userSession = await auth();
 
   const stripe = new Stripe(secret);
   const origin = new URL(req.url).origin;
@@ -33,6 +36,11 @@ export async function POST(req: Request) {
       ],
       success_url: `${origin}/results?session_id={CHECKOUT_SESSION_ID}&unlocked=true`,
       cancel_url: `${origin}/results`,
+      metadata:
+        userSession?.user?.id != null
+          ? { userId: userSession.user.id }
+          : {},
+      client_reference_id: userSession?.user?.id ?? undefined,
     });
 
     if (!session.url) {

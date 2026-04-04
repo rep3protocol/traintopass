@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { neon } from "@neondatabase/serverless";
 
 export async function POST(req: Request) {
   const secret = process.env.STRIPE_SECRET_KEY;
@@ -28,6 +29,35 @@ export async function POST(req: Request) {
     const session = await stripe.checkout.sessions.retrieve(session_id);
     const ok =
       session.status === "complete" && session.payment_status === "paid";
+
+    if (ok) {
+      const userId = session.metadata?.userId;
+      let customerId: string | null = null;
+      if (typeof session.customer === "string") {
+        customerId = session.customer;
+      } else if (
+        session.customer &&
+        typeof session.customer === "object" &&
+        "id" in session.customer
+      ) {
+        customerId = (session.customer as Stripe.Customer).id;
+      }
+
+      const dbUrl = process.env.DATABASE_URL?.trim();
+      if (userId && customerId && dbUrl) {
+        try {
+          const sql = neon(dbUrl);
+          await sql`
+            UPDATE users
+            SET stripe_customer_id = ${customerId}
+            WHERE id = ${userId}::uuid
+          `;
+        } catch {
+          /* silent — fall back to session-only unlock */
+        }
+      }
+    }
+
     return NextResponse.json({ unlocked: ok });
   } catch {
     return NextResponse.json({ unlocked: false });

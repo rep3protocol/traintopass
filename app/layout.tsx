@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow, Bebas_Neue } from "next/font/google";
+import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 
 const bebas = Bebas_Neue({
@@ -42,7 +43,7 @@ export default function RootLayout({
       <body
         className={`${bebas.variable} ${barlow.variable} min-h-screen bg-forge-bg font-body antialiased`}
       >
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
