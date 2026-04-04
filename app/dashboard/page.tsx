@@ -17,6 +17,10 @@ type Row = {
   created_at: string | Date;
 };
 
+type GeneralProgramRow = {
+  created_at: string | Date;
+};
+
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -24,6 +28,7 @@ export default async function DashboardPage() {
   const paid = await getUserSubscriptionPaid(session.user.id);
 
   let rows: Row[] = [];
+  let generalProgram: GeneralProgramRow | null = null;
   const url = process.env.DATABASE_URL;
   if (url?.trim()) {
     try {
@@ -48,6 +53,22 @@ export default async function DashboardPage() {
       }));
     } catch {
       rows = [];
+    }
+    try {
+      const sql = neon(url);
+      const gp = await sql`
+        SELECT created_at
+        FROM general_program_history
+        WHERE user_id = ${session.user.id}::uuid
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      const first = (gp as Record<string, unknown>[])[0];
+      if (first?.created_at) {
+        generalProgram = { created_at: first.created_at as string | Date };
+      }
+    } catch {
+      generalProgram = null;
     }
   }
 
@@ -84,6 +105,49 @@ export default async function DashboardPage() {
             Run calculator
           </Link>
         </div>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+          <h2 className="font-heading text-xl text-white tracking-wide">
+            GENERAL TRAINING PROGRAM
+          </h2>
+          <p className="text-sm text-neutral-400 leading-relaxed">
+            8-week AI program built around your goals and schedule
+          </p>
+          {generalProgram ? (
+            <>
+              <p className="text-xs text-neutral-500">
+                Last generated:{" "}
+                {generalProgram.created_at instanceof Date
+                  ? generalProgram.created_at.toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : new Date(generalProgram.created_at).toLocaleDateString(
+                      undefined,
+                      {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      }
+                    )}
+              </p>
+              <Link
+                href="/train"
+                className="inline-block border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
+              >
+                View my program →
+              </Link>
+            </>
+          ) : (
+            <Link
+              href="/train"
+              className="inline-block border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
+            >
+              Build my program →
+            </Link>
+          )}
+        </section>
 
         <section className="space-y-4">
           <h2 className="font-heading text-xl text-white tracking-wide">

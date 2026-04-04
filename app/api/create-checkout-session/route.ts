@@ -13,6 +13,23 @@ export async function POST(req: Request) {
 
   const userSession = await auth();
 
+  let returnPath = "/results";
+  try {
+    const raw = await req.text();
+    if (raw.trim()) {
+      const j = JSON.parse(raw) as { returnPath?: string };
+      if (
+        typeof j.returnPath === "string" &&
+        j.returnPath.startsWith("/") &&
+        !j.returnPath.startsWith("//")
+      ) {
+        returnPath = j.returnPath.split("?")[0] || "/results";
+      }
+    }
+  } catch {
+    /* default */
+  }
+
   const stripe = new Stripe(secret);
   const origin = new URL(req.url).origin;
 
@@ -34,8 +51,8 @@ export async function POST(req: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${origin}/results?session_id={CHECKOUT_SESSION_ID}&unlocked=true`,
-      cancel_url: `${origin}/results`,
+      success_url: `${origin}${returnPath}?session_id={CHECKOUT_SESSION_ID}&unlocked=true`,
+      cancel_url: `${origin}${returnPath}`,
       metadata:
         userSession?.user?.id != null
           ? { userId: userSession.user.id }

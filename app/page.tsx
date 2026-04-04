@@ -109,6 +109,8 @@ export default function Home() {
                 {[
                   "Everything in free",
                   "Full 4-week training plan",
+                  "General 8-week training program (Strength / Cardio / Full Fitness)",
+                  "Unlimited program regeneration",
                   "Customized to your training schedule (3–6 days/week)",
                   "PDF download & email delivery",
                   "Unlimited retakes",
@@ -121,6 +123,51 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-20 w-full max-w-5xl text-left">
+          <h2 className="font-heading text-3xl sm:text-4xl text-white tracking-wide text-center">
+            TWO WAYS TO TRAIN
+          </h2>
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
+            <div className="border-2 border-forge-accent bg-forge-panel p-6 sm:p-8 flex flex-col gap-4">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-forge-accent">
+                AFT PREP
+              </span>
+              <h3 className="font-heading text-2xl sm:text-3xl text-white tracking-wide">
+                Know Your Score. Fix Your Weak Events.
+              </h3>
+              <p className="text-sm text-neutral-400 leading-relaxed flex-1">
+                Enter your AFT scores and get an AI training plan built around
+                your lowest events. Official May 2025 scoring tables.
+              </p>
+              <Link
+                href="/calculate"
+                className="inline-block w-full text-center border-2 border-forge-accent bg-transparent py-3 font-body text-sm font-semibold uppercase tracking-widest text-forge-accent hover:bg-forge-accent hover:text-forge-bg transition-colors"
+              >
+                Calculate My Score →
+              </Link>
+            </div>
+            <div className="border-2 border-forge-accent bg-forge-panel p-6 sm:p-8 flex flex-col gap-4">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-forge-accent">
+                GENERAL FITNESS
+              </span>
+              <h3 className="font-heading text-2xl sm:text-3xl text-white tracking-wide">
+                No Test? No Problem.
+              </h3>
+              <p className="text-sm text-neutral-400 leading-relaxed flex-1">
+                Build a complete 8-week military fitness program around your
+                goals, schedule, and available equipment. For soldiers and
+                civilians alike.
+              </p>
+              <Link
+                href="/train"
+                className="inline-block w-full text-center border-2 border-forge-accent bg-transparent py-3 font-body text-sm font-semibold uppercase tracking-widest text-forge-accent hover:bg-forge-accent hover:text-forge-bg transition-colors"
+              >
+                Build My Program →
+              </Link>
             </div>
           </div>
         </section>

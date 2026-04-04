@@ -58,6 +58,21 @@ CREATE TABLE IF NOT EXISTS score_history (
 CREATE INDEX IF NOT EXISTS score_history_user_id_created_at
   ON score_history (user_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS general_program_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  goal TEXT NOT NULL,
+  training_days INTEGER NOT NULL,
+  equipment TEXT NOT NULL,
+  fitness_level TEXT NOT NULL,
+  limitations TEXT,
+  program_markdown TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS general_program_history_user_created_at
+  ON general_program_history (user_id, created_at DESC);
+
 -- If you created an older `users` table without billing fields, run:
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT;
