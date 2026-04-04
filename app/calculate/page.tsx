@@ -1,8 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type InputHTMLAttributes } from "react";
+import { useEffect, useMemo, useState, type InputHTMLAttributes } from "react";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
+import type { AnalyzeResponseBody } from "@/lib/analyze-types";
+import {
+  STORAGE_NEW_RUN_FLAG,
+  STORAGE_RESULT_KEY,
+} from "@/lib/storage-keys";
 import {
   AGE_GROUPS,
   EVENT_LABELS,
@@ -15,9 +21,6 @@ import {
   progressTone,
   scoreEvent,
 } from "@/lib/aft-scoring";
-import type { AnalyzeResponseBody } from "@/lib/analyze-types";
-
-const STORAGE_KEY = "aft-forge-result";
 
 const TIMED_EVENTS = new Set<EventKey>(["sdc", "plk", "twoMR"]);
 
@@ -46,6 +49,13 @@ const FIELD_META: Record<
   plk: { unit: "MM:SS", inputMode: "numeric" },
   twoMR: { unit: "MM:SS", inputMode: "numeric" },
 };
+
+const LOADING_MESSAGES = [
+  "Analyzing your scores...",
+  "Identifying weak events...",
+  "Building your training plan...",
+  "Almost ready...",
+];
 
 function parseEventRaw(key: EventKey, s: string): number | null {
   const t = s.trim();
@@ -87,6 +97,45 @@ export default function CalculatePage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [loadMsgIndex, setLoadMsgIndex] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("reset") === "1") {
+      setForm(initialForm());
+      try {
+        sessionStorage.removeItem(STORAGE_RESULT_KEY);
+      } catch {
+        /* ignore */
+      }
+      window.history.replaceState({}, "", "/calculate");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadProgress(0);
+      setLoadMsgIndex(0);
+      return;
+    }
+    const start = Date.now();
+    const totalMs = 8000;
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - start;
+      setLoadProgress(Math.min(95, (elapsed / totalMs) * 100));
+    }, 40);
+    return () => clearInterval(tick);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!loading) return;
+    const id = setInterval(() => {
+      setLoadMsgIndex((i) => (i + 1) % LOADING_MESSAGES.length);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [loading]);
 
   const liveScores = useMemo((): Record<EventKey, number | null> => {
     const out = {} as Record<EventKey, number | null>;
@@ -122,6 +171,8 @@ export default function CalculatePage() {
     }
 
     setLoading(true);
+    setLoadProgress(0);
+    let leaveSpinnerOn = false;
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -132,36 +183,64 @@ export default function CalculatePage() {
           scores,
         }),
       });
-      const data = (await res.json()) as AnalyzeResponseBody & { error?: string };
+      const data = (await res.json()) as AnalyzeResponseBody & {
+        error?: string;
+      };
       if (!res.ok) {
-        setError(data.error ?? "Analysis failed.");
+        sessionStorage.setItem(
+          STORAGE_RESULT_KEY,
+          JSON.stringify({
+            analyzeError: true,
+            message: data.error ?? "Analysis failed.",
+          })
+        );
+        setLoadProgress(100);
+        leaveSpinnerOn = true;
+        router.push("/results");
         return;
       }
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      sessionStorage.setItem(STORAGE_NEW_RUN_FLAG, "1");
+      sessionStorage.setItem(STORAGE_RESULT_KEY, JSON.stringify(data));
+      setLoadProgress(100);
+      leaveSpinnerOn = true;
       router.push("/results");
     } catch {
-      setError("Network error. Try again.");
+      sessionStorage.setItem(
+        STORAGE_RESULT_KEY,
+        JSON.stringify({
+          analyzeError: true,
+          message: "Network error. Try again.",
+        })
+      );
+      setLoadProgress(100);
+      leaveSpinnerOn = true;
+      router.push("/results");
     } finally {
-      setLoading(false);
+      if (!leaveSpinnerOn) setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-forge-border px-4 sm:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
-        <Link
-          href="/"
-          className="font-heading text-2xl sm:text-3xl tracking-wide text-white"
+    <div className="min-h-screen flex flex-col relative">
+      {loading ? (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0a0a0a] px-6"
+          role="status"
+          aria-live="polite"
         >
-          AFT <span className="text-forge-accent">FORGE</span>
-        </Link>
-        <Link
-          href="/"
-          className="text-sm text-neutral-500 hover:text-forge-accent uppercase tracking-widest"
-        >
-          Home
-        </Link>
-      </header>
+          <p className="font-heading text-2xl sm:text-3xl text-white tracking-wide text-center max-w-md">
+            {LOADING_MESSAGES[loadMsgIndex]}
+          </p>
+          <div className="mt-10 w-full max-w-md h-3 border border-forge-border bg-forge-bg overflow-hidden">
+            <div
+              className="h-full bg-forge-accent transition-[width] duration-100 ease-linear"
+              style={{ width: `${loadProgress}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <SiteHeader />
 
       <main className="flex-1 px-4 sm:px-8 py-10 max-w-2xl mx-auto w-full">
         <h1 className="font-heading text-4xl sm:text-5xl text-white tracking-wide">
@@ -274,6 +353,8 @@ export default function CalculatePage() {
           </button>
         </form>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

@@ -30,3 +30,17 @@ export type AnalyzeRequestBody = {
   gender: Gender;
   scores: Record<EventKey, number>;
 };
+
+/** Stored in sessionStorage when analysis API fails; results page shows error UI. */
+export type AnalyzeErrorStored = {
+  analyzeError: true;
+  message?: string;
+};
+
+export type ResultsStored = AnalyzeResponseBody | AnalyzeErrorStored;
+
+export function isAnalyzeError(
+  data: ResultsStored | null
+): data is AnalyzeErrorStored {
+  return data != null && "analyzeError" in data && data.analyzeError === true;
+}

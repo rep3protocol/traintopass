@@ -17,9 +17,19 @@ const barlow = Barlow({
 });
 
 export const metadata: Metadata = {
-  title: "AFT Forge",
+  metadataBase: new URL("https://traintopass.com"),
+  title:
+    "Train to Pass — Army Fitness Test Score Calculator & Training Plans",
   description:
-    "Enter your AFT scores. Get a personalized 4-week training plan built around your worst events.",
+    "Calculate your AFT scores instantly and get a personalized 4-week training plan built around your weakest events.",
+  openGraph: {
+    siteName: "Train to Pass",
+    type: "website",
+    title:
+      "Train to Pass — Army Fitness Test Score Calculator & Training Plans",
+    description:
+      "Calculate your AFT scores instantly and get a personalized 4-week training plan built around your weakest events.",
+  },
 };
 
 export default function RootLayout({
