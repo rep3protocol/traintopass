@@ -11,7 +11,12 @@ import {
   type Gender,
   scoreEvent,
 } from "@/lib/aft-scoring";
-import type { AnalyzeRequestBody, AnalyzeResponseBody } from "@/lib/analyze-types";
+import type {
+  AnalyzeRequestBody,
+  AnalyzeResponseBody,
+  TrainingDaysPerWeek,
+} from "@/lib/analyze-types";
+import { extractPlanTextAndDeepDives } from "@/lib/extract-event-deep-dives";
 import { parsePlanWeeks } from "@/lib/parse-plan-weeks";
 
 const MODEL = "claude-haiku-4-5-20251001";
@@ -40,8 +45,11 @@ function buildPrompt(payload: {
   gender: Gender;
   lines: string[];
   weakEvents: string[];
+  trainingDays: TrainingDaysPerWeek;
+  eventNamesForJson: string[];
 }): string {
   const genderLabel = payload.gender === "male" ? "Male" : "Female";
+  const namesList = payload.eventNamesForJson.map((n) => `- ${n}`).join("\n");
   return `You are a U.S. Army AFT (Army Fitness Test)-focused strength and conditioning coach.
 
 The AFT has five events: 3 Repetition Maximum Deadlift (MDL), Hand-Release Push-Up (HRP), Sprint-Drag-Carry (SDC), Plank (PLK), and Two-Mile Run (2MR).
@@ -59,7 +67,9 @@ Events scoring below 75 (priority for improvement): ${
       : "None — still provide a balanced maintenance plan."
   }
 
-Tailor the plan appropriately for this soldier's gender and age group. Write a practical 4-week training plan (Mon–Sun structure optional but helpful). Emphasize the weakest events above while keeping the other events maintained. Include volume, intensity notes, and rest guidance. Use plain text with EXACT section headings so parsing works:
+The soldier can train ${payload.trainingDays} days per week. Structure the 4-week plan around this availability. Distribute work across the available training days so no single day is overloaded.
+
+Tailor the plan appropriately for this soldier's gender and age group. Write a practical 4-week training plan. Emphasize the weakest events above while keeping the other events maintained. Include volume, intensity notes, and rest guidance. Use plain text with EXACT section headings so parsing works:
 
 ## Week 1
 (week 1 content)
@@ -73,7 +83,21 @@ Tailor the plan appropriately for this soldier's gender and age group. Write a p
 ## Week 4
 (week 4 content)
 
-No preamble before ## Week 1.`;
+No preamble before ## Week 1.
+
+After the Week 4 section, output nothing else except one markdown fenced JSON code block using the json language tag. The block must be valid JSON with this shape:
+{"eventDeepDives":[...]}
+
+For each event where the soldier scored below 75 points, include exactly one object in eventDeepDives with:
+- "event": string — use the EXACT event name from this list (copy verbatim):
+${namesList}
+- "drills": array of exactly 5 strings — each string names one drill and includes specific sets, reps, and rest periods (e.g. "Romanian deadlift: 4×6 @ RPE 7, 2 min rest between sets")
+- "mistake": string — one common mistake to avoid for this event
+- "tip": string — one tip to maximize score on test day
+
+If no events are below 75, use an empty array: "eventDeepDives": []
+
+Do not add commentary outside the JSON code block after Week 4.`;
 }
 
 export async function POST(req: Request) {
@@ -85,6 +109,12 @@ export async function POST(req: Request) {
   }
 
   const { ageGroup, gender, scores } = body;
+
+  let trainingDays: TrainingDaysPerWeek = 4;
+  const td = body.trainingDays;
+  if (td === 3 || td === 4 || td === 5 || td === 6) {
+    trainingDays = td;
+  }
   if (!ageGroup || !isAgeGroup(ageGroup)) {
     return NextResponse.json({ error: "Invalid age group" }, { status: 400 });
   }
@@ -133,6 +163,8 @@ export async function POST(req: Request) {
     .filter((e) => e.score < 75)
     .map((e) => `${e.label} (${e.score})`);
 
+  const eventNamesForJson = events.map((e) => e.label);
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -142,9 +174,16 @@ export async function POST(req: Request) {
   }
 
   const anthropic = new Anthropic({ apiKey });
-  const prompt = buildPrompt({ ageGroup, gender, lines, weakEvents });
+  const prompt = buildPrompt({
+    ageGroup,
+    gender,
+    lines,
+    weakEvents,
+    trainingDays,
+    eventNamesForJson,
+  });
 
-  let aiPlanFull: string;
+  let rawModelText: string;
   try {
     const msg = await anthropic.messages.create({
       model: MODEL,
@@ -152,7 +191,7 @@ export async function POST(req: Request) {
       messages: [{ role: "user", content: prompt }],
     });
     const block = msg.content.find((b) => b.type === "text");
-    aiPlanFull =
+    rawModelText =
       block && block.type === "text"
         ? block.text
         : "Unable to generate plan.";
@@ -161,6 +200,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
+  const { planText, eventDeepDives } = extractPlanTextAndDeepDives(rawModelText);
+  const aiPlanFull = planText;
   const weeks = parsePlanWeeks(aiPlanFull);
 
   const payload: AnalyzeResponseBody = {
@@ -171,6 +212,7 @@ export async function POST(req: Request) {
     overallPassed,
     aiPlanFull,
     weeks,
+    eventDeepDives,
   };
 
   return NextResponse.json(payload);

@@ -13,13 +13,18 @@ import {
 import {
   isAnalyzeError,
   type AnalyzeResponseBody,
+  type EventDeepDive,
   type ResultsStored,
+  type TrainingDaysPerWeek,
 } from "@/lib/analyze-types";
+import { PlanWeekMarkdown } from "@/components/plan-week-markdown";
+import { ProgressChart } from "@/components/progress-chart";
 import { downloadTrainingPlanPdf } from "@/lib/generate-plan-pdf";
 import { appendHistoryFromResult, clearHistory, readHistory, type HistoryEntry } from "@/lib/history";
 import {
   LS_FREE_RESULTS_EMAIL_KEY,
   LS_PLAN_EMAIL_KEY,
+  SESSION_TRAINING_DAYS_KEY,
   STORAGE_NEW_RUN_FLAG,
   STORAGE_RESULT_KEY,
   STORAGE_UNLOCK_KEY,
@@ -53,14 +58,50 @@ function statusBadgeLabel(status: "pass" | "borderline" | "fail"): string {
   return "FAIL";
 }
 
+const TRAINING_DAY_OPTIONS: TrainingDaysPerWeek[] = [3, 4, 5, 6];
+
+const REGENERATE_LOADING_MESSAGES = [
+  "Rebuilding your plan…",
+  "Applying your schedule…",
+  "Balancing volume across training days…",
+  "Almost ready…",
+];
+
+function scoresRecordFromResult(data: AnalyzeResponseBody): Record<EventKey, number> {
+  const out = {} as Record<EventKey, number>;
+  for (const e of data.events) {
+    out[e.key] = e.raw;
+  }
+  return out;
+}
+
+function findEventForDeepDive(data: AnalyzeResponseBody, eventLabel: string) {
+  const t = eventLabel.trim();
+  return data.events.find((e) => e.label === t);
+}
+
+function deepDivesForPaidUi(
+  data: AnalyzeResponseBody
+): { dive: EventDeepDive; ev: AnalyzeResponseBody["events"][number] }[] {
+  const dives = data.eventDeepDives ?? [];
+  const out: { dive: EventDeepDive; ev: AnalyzeResponseBody["events"][number] }[] = [];
+  for (const dive of dives) {
+    const ev = findEventForDeepDive(data, dive.event);
+    if (ev && ev.score < 75) {
+      out.push({ dive, ev });
+    }
+  }
+  return out;
+}
+
 function WeekBlock({ title, body }: { title: string; body: string }) {
   return (
     <section className="border border-forge-border bg-forge-panel p-4 sm:p-6">
       <h3 className="font-heading text-2xl text-forge-accent tracking-wide">
         {title}
       </h3>
-      <div className="mt-4 text-sm text-neutral-300 whitespace-pre-wrap leading-relaxed">
-        {body || "—"}
+      <div className="mt-4">
+        <PlanWeekMarkdown body={body} />
       </div>
     </section>
   );
@@ -136,6 +177,13 @@ export default function ResultsPage() {
   const [freeDone, setFreeDone] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [paidPlanReady, setPaidPlanReady] = useState(false);
+  const [selectedTrainingDays, setSelectedTrainingDays] =
+    useState<TrainingDaysPerWeek>(4);
+  const [regeneratingPlan, setRegeneratingPlan] = useState(false);
+  const [regenMsgIndex, setRegenMsgIndex] = useState(0);
+  const [planGenError, setPlanGenError] = useState<string | null>(null);
+  const pendingPlanEmailSendRef = useRef(false);
 
   const data: AnalyzeResponseBody | null =
     stored && !isAnalyzeError(stored) ? stored : null;
@@ -210,6 +258,35 @@ export default function ResultsPage() {
   }, [router]);
 
   useEffect(() => {
+    if (!data) {
+      setPaidPlanReady(false);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(SESSION_TRAINING_DAYS_KEY);
+      if (raw === "3" || raw === "4" || raw === "5" || raw === "6") {
+        setSelectedTrainingDays(Number(raw) as TrainingDaysPerWeek);
+        setPaidPlanReady(true);
+      } else {
+        setPaidPlanReady(false);
+      }
+    } catch {
+      setPaidPlanReady(false);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (!regeneratingPlan) {
+      setRegenMsgIndex(0);
+      return;
+    }
+    const id = setInterval(() => {
+      setRegenMsgIndex((i) => (i + 1) % REGENERATE_LOADING_MESSAGES.length);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [regeneratingPlan]);
+
+  useEffect(() => {
     if (!data || leaderboardSent.current) return;
     leaderboardSent.current = true;
     void fetch("/api/leaderboard/submit", {
@@ -248,20 +325,74 @@ export default function ResultsPage() {
     if (!em) return;
     setPlanEmailSubmitting(true);
     try {
-      const res = await fetch("/api/send-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: em, plan: data }),
-      });
-      if (!res.ok) return;
       try {
         localStorage.setItem(LS_PLAN_EMAIL_KEY, em);
       } catch {
         /* ignore */
       }
+      pendingPlanEmailSendRef.current = true;
       setPlanGateDone(true);
     } finally {
       setPlanEmailSubmitting(false);
+    }
+  }
+
+  async function queueSendPlanAfterGenerate(plan: AnalyzeResponseBody) {
+    if (!pendingPlanEmailSendRef.current) return;
+    pendingPlanEmailSendRef.current = false;
+    let em = "";
+    try {
+      em = localStorage.getItem(LS_PLAN_EMAIL_KEY)?.trim() ?? "";
+    } catch {
+      /* ignore */
+    }
+    if (!em) return;
+    try {
+      await fetch("/api/send-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: em, plan }),
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function runPaidPlanGeneration(days: TrainingDaysPerWeek) {
+    if (!data) return;
+    setRegeneratingPlan(true);
+    setRegenMsgIndex(0);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ageGroup: data.ageGroup,
+          gender: data.gender,
+          scores: scoresRecordFromResult(data),
+          trainingDays: days,
+        }),
+      });
+      const body = (await res.json()) as AnalyzeResponseBody & {
+        error?: string;
+      };
+      if (!res.ok) {
+        setPlanGenError(body.error ?? "Could not update your plan. Try again.");
+        return;
+      }
+      setPlanGenError(null);
+      try {
+        sessionStorage.setItem(SESSION_TRAINING_DAYS_KEY, String(days));
+        sessionStorage.setItem(STORAGE_RESULT_KEY, JSON.stringify(body));
+      } catch {
+        /* ignore */
+      }
+      setStored(body);
+      setSelectedTrainingDays(days);
+      setPaidPlanReady(true);
+      await queueSendPlanAfterGenerate(body);
+    } finally {
+      setRegeneratingPlan(false);
     }
   }
 
@@ -349,12 +480,29 @@ export default function ResultsPage() {
     return null;
   }
 
-  const showPaidWeeks =
-    unlocked && planGateDone;
+  const showPaidWeeks = unlocked && planGateDone && paidPlanReady;
+  const showTrainingFrequencyGate =
+    unlocked && planGateDone && !paidPlanReady;
   const showPlanEmailGate = unlocked && !planGateDone;
+  const paidDeepDives = data ? deepDivesForPaidUi(data) : [];
 
   return (
-    <div className="min-h-screen flex flex-col pb-8">
+    <div className="min-h-screen flex flex-col pb-8 relative">
+      {regeneratingPlan ? (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0a0a0a] px-6"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="font-heading text-2xl sm:text-3xl text-white tracking-wide text-center max-w-md">
+            {REGENERATE_LOADING_MESSAGES[regenMsgIndex]}
+          </p>
+          <div className="mt-10 w-full max-w-md h-3 border border-forge-border bg-forge-bg overflow-hidden">
+            <div className="h-full w-1/3 bg-forge-accent animate-pulse" />
+          </div>
+        </div>
+      ) : null}
+
       <SiteHeader />
 
       <main className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto w-full space-y-10">
@@ -522,6 +670,10 @@ export default function ResultsPage() {
               <h3 className="font-heading text-xl text-white tracking-wide">
                 One last step — where should we send your plan?
               </h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                We&apos;ll email your full customized plan right after you
+                generate it on the next screen.
+              </p>
               <form
                 onSubmit={(e) => void handlePlanEmailSubmit(e)}
                 className="space-y-4"
@@ -540,9 +692,50 @@ export default function ResultsPage() {
                   disabled={planEmailSubmitting}
                   className="w-full sm:w-auto border-2 border-forge-accent bg-forge-accent px-8 py-3 text-xs font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent disabled:opacity-50 transition-colors"
                 >
-                  {planEmailSubmitting ? "Sending…" : "Send My Plan & Unlock"}
+                  {planEmailSubmitting ? "Saving…" : "Continue"}
                 </button>
               </form>
+            </div>
+          ) : null}
+
+          {showTrainingFrequencyGate ? (
+            <div className="border border-forge-border bg-forge-panel p-6 space-y-5">
+              <h3 className="font-heading text-2xl text-white tracking-wide">
+                One quick question before your plan
+              </h3>
+              <p className="text-sm text-neutral-300">
+                How many days per week can you train?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {TRAINING_DAY_OPTIONS.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    disabled={regeneratingPlan}
+                    onClick={() => setSelectedTrainingDays(d)}
+                    className={`border px-4 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
+                      selectedTrainingDays === d
+                        ? "border-forge-accent bg-forge-accent text-forge-bg"
+                        : "border-forge-border bg-forge-bg text-neutral-300 hover:border-forge-accent hover:text-forge-accent"
+                    } disabled:opacity-50`}
+                  >
+                    {d} days
+                  </button>
+                ))}
+              </div>
+              {planGenError ? (
+                <p className="text-sm text-red-400 border border-red-900/50 bg-red-950/30 px-4 py-3">
+                  {planGenError}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                disabled={regeneratingPlan}
+                onClick={() => void runPaidPlanGeneration(selectedTrainingDays)}
+                className="border-2 border-forge-accent bg-forge-accent px-8 py-3 text-xs font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent disabled:opacity-50 transition-colors"
+              >
+                Generate My Plan
+              </button>
             </div>
           ) : null}
 
@@ -559,19 +752,112 @@ export default function ResultsPage() {
               >
                 ⬇ Download Full Plan (PDF)
               </button>
+
+              {paidDeepDives.length > 0 ? (
+                <section className="space-y-4 pt-2">
+                  <h2 className="font-heading text-2xl text-white tracking-wide">
+                    Event Deep-Dive
+                  </h2>
+                  <p className="text-xs text-neutral-500 leading-relaxed max-w-xl">
+                    Targeted drills for events under 75 points — fix weak links
+                    before test day.
+                  </p>
+                  <div className="space-y-4">
+                    {paidDeepDives.map(({ dive, ev }) => (
+                      <article
+                        key={ev.key}
+                        className="border border-forge-border bg-forge-panel p-5 sm:p-6 space-y-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <h3 className="font-heading text-xl text-forge-accent tracking-wide pr-2">
+                            {ev.label}
+                          </h3>
+                          <span
+                            className={`shrink-0 text-[10px] uppercase tracking-wider border px-2 py-1 ${badgeClasses(
+                              ev.status
+                            )}`}
+                          >
+                            {ev.score} pts · {ev.status}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500 mb-2">
+                            Drills
+                          </p>
+                          <ol className="list-decimal list-inside space-y-2 text-sm text-neutral-300 leading-relaxed">
+                            {dive.drills.slice(0, 5).map((line, i) => (
+                              <li key={i}>{line}</li>
+                            ))}
+                          </ol>
+                        </div>
+                        <div className="border-t border-forge-border pt-4 space-y-3 text-sm">
+                          <p className="text-neutral-300">
+                            <span className="text-forge-accent font-semibold">
+                              Common mistake:{" "}
+                            </span>
+                            {dive.mistake}
+                          </p>
+                          <p className="text-neutral-300">
+                            <span className="text-forge-accent font-semibold">
+                              Test day tip:{" "}
+                            </span>
+                            {dive.tip}
+                          </p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              <div className="border border-forge-border bg-forge-panel p-5 space-y-4">
+                <p className="text-sm text-neutral-300">
+                  How many days per week can you train?
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {TRAINING_DAY_OPTIONS.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      disabled={regeneratingPlan}
+                      onClick={() => setSelectedTrainingDays(d)}
+                      className={`border px-4 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
+                        selectedTrainingDays === d
+                          ? "border-forge-accent bg-forge-accent text-forge-bg"
+                          : "border-forge-border bg-forge-bg text-neutral-300 hover:border-forge-accent hover:text-forge-accent"
+                      } disabled:opacity-50`}
+                    >
+                      {d} days
+                    </button>
+                  ))}
+                </div>
+                {planGenError ? (
+                  <p className="text-sm text-red-400 border border-red-900/50 bg-red-950/30 px-3 py-2">
+                    {planGenError}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={regeneratingPlan}
+                  onClick={() => void runPaidPlanGeneration(selectedTrainingDays)}
+                  className="border border-forge-accent bg-forge-panel px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-forge-accent hover:bg-forge-bg/80 disabled:opacity-50 transition-colors"
+                >
+                  Regenerate My Plan
+                </button>
+              </div>
             </>
           ) : null}
 
-          {!showPaidWeeks && !showPlanEmailGate ? (
+          {!unlocked && !showPlanEmailGate ? (
             <div className="relative border border-forge-border bg-forge-panel overflow-hidden">
               <div className="p-4 sm:p-6 blur-md select-none pointer-events-none opacity-40">
                 <h3 className="font-heading text-2xl text-forge-accent tracking-wide">
                   Week 3 &amp; 4
                 </h3>
-                <div className="mt-4 text-sm text-neutral-300 whitespace-pre-wrap leading-relaxed">
-                  {data.weeks.week3}
-                  {"\n\n"}
-                  {data.weeks.week4}
+                <div className="mt-4">
+                  <PlanWeekMarkdown
+                    body={`${data.weeks.week3}\n\n${data.weeks.week4}`}
+                  />
                 </div>
               </div>
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-forge-bg/80 px-6 text-center">
@@ -595,6 +881,18 @@ export default function ResultsPage() {
             </div>
           ) : null}
         </div>
+
+        {unlocked ? (
+          <section className="space-y-4 pt-4 border-t border-forge-border">
+            <h2 className="font-heading text-xl text-white tracking-wide">
+              My Progress
+            </h2>
+            <p className="text-xs text-neutral-500 leading-relaxed max-w-xl">
+              Total score (0–500) across your saved attempts.
+            </p>
+            <ProgressChart history={history} />
+          </section>
+        ) : null}
 
         <section className="space-y-4 pt-4 border-t border-forge-border">
           <div className="flex items-baseline justify-between gap-4">

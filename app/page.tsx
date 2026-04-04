@@ -77,6 +77,54 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="mt-20 w-full max-w-4xl text-left">
+          <h2 className="font-heading text-3xl sm:text-4xl text-white tracking-wide text-center">
+            PRICING
+          </h2>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2">
+            <div className="border border-forge-border bg-forge-panel p-6 sm:p-8 flex flex-col gap-4">
+              <h3 className="font-heading text-2xl text-white tracking-wide">
+                FREE
+              </h3>
+              <ul className="space-y-2 text-sm text-neutral-400 leading-relaxed list-none">
+                {[
+                  "AFT score calculator",
+                  "Pass/fail analysis",
+                  "Week 1 & 2 of your training plan",
+                  "SDC no-equipment alternatives",
+                  "Shareable score card",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span className="text-forge-accent shrink-0">—</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="border-2 border-forge-accent bg-forge-panel p-6 sm:p-8 flex flex-col gap-4">
+              <h3 className="font-heading text-2xl text-forge-accent tracking-wide">
+                $7/MO — FULL ACCESS
+              </h3>
+              <ul className="space-y-2 text-sm text-neutral-300 leading-relaxed list-none">
+                {[
+                  "Everything in free",
+                  "Full 4-week training plan",
+                  "Customized to your training schedule (3–6 days/week)",
+                  "PDF download & email delivery",
+                  "Unlimited retakes",
+                  "Event deep-dives for weak events",
+                  "Progress tracker",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span className="text-forge-accent shrink-0">—</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <Link
           href="/calculate"
           className="mt-16 inline-block border-2 border-forge-accent bg-forge-accent px-10 py-4 font-body text-sm font-semibold uppercase tracking-widest text-forge-bg transition-colors hover:bg-transparent hover:text-forge-accent"

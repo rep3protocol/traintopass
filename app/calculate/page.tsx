@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import type { AnalyzeResponseBody } from "@/lib/analyze-types";
 import {
+  SESSION_TRAINING_DAYS_KEY,
   STORAGE_NEW_RUN_FLAG,
   STORAGE_RESULT_KEY,
 } from "@/lib/storage-keys";
@@ -107,6 +108,7 @@ export default function CalculatePage() {
       setForm(initialForm());
       try {
         sessionStorage.removeItem(STORAGE_RESULT_KEY);
+        sessionStorage.removeItem(SESSION_TRAINING_DAYS_KEY);
       } catch {
         /* ignore */
       }
@@ -200,6 +202,11 @@ export default function CalculatePage() {
         return;
       }
       sessionStorage.setItem(STORAGE_NEW_RUN_FLAG, "1");
+      try {
+        sessionStorage.removeItem(SESSION_TRAINING_DAYS_KEY);
+      } catch {
+        /* ignore */
+      }
       sessionStorage.setItem(STORAGE_RESULT_KEY, JSON.stringify(data));
       setLoadProgress(100);
       leaveSpinnerOn = true;

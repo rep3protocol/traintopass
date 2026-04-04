@@ -1,5 +1,14 @@
 import type { AgeGroup, EventKey, EventStatus, Gender } from "./aft-scoring";
 
+export type TrainingDaysPerWeek = 3 | 4 | 5 | 6;
+
+export type EventDeepDive = {
+  event: string;
+  drills: string[];
+  mistake: string;
+  tip: string;
+};
+
 export type PerEventResult = {
   key: EventKey;
   label: string;
@@ -23,12 +32,16 @@ export type AnalyzeResponseBody = {
     week3: string;
     week4: string;
   };
+  /** Present when the model returned a valid JSON block; may be empty. */
+  eventDeepDives?: EventDeepDive[];
 };
 
 export type AnalyzeRequestBody = {
   ageGroup: AgeGroup;
   gender: Gender;
   scores: Record<EventKey, number>;
+  /** Days per week the soldier can train; defaults to 4 if omitted or invalid. */
+  trainingDays?: TrainingDaysPerWeek;
 };
 
 /** Stored in sessionStorage when analysis API fails; results page shows error UI. */

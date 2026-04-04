@@ -2,6 +2,31 @@ import { EVENT_ORDER } from "@/lib/aft-scoring";
 import { escapeHtml } from "@/lib/html-escape";
 import type { AnalyzeResponseBody } from "@/lib/analyze-types";
 
+function deepDivesForEmail(data: AnalyzeResponseBody) {
+  const dives = data.eventDeepDives ?? [];
+  return dives
+    .map((dive) => {
+      const ev = data.events.find((e) => e.label === dive.event.trim());
+      if (!ev || ev.score >= 75) return "";
+      const drills = dive.drills
+        .slice(0, 5)
+        .map(
+          (line) =>
+            `<li style="margin:6px 0;color:#d4d4d4;">${escapeHtml(line)}</li>`
+        )
+        .join("");
+      return `<div style="margin:20px 0;padding:16px;border:1px solid #333;background:#161616;">
+        <h3 style="color:#4ade80;font-size:16px;margin:0 0 8px;">${escapeHtml(ev.label)}</h3>
+        <p style="color:#a3a3a3;font-size:13px;margin:0 0 10px;">${ev.score} pts · ${escapeHtml(ev.status)}</p>
+        <p style="color:#737373;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 6px;">Drills</p>
+        <ol style="margin:0;padding-left:18px;">${drills}</ol>
+        <p style="margin:14px 0 0;font-size:13px;color:#e5e5e5;"><strong style="color:#4ade80;">Common mistake:</strong> ${escapeHtml(dive.mistake)}</p>
+        <p style="margin:8px 0 0;font-size:13px;color:#e5e5e5;"><strong style="color:#4ade80;">Test day tip:</strong> ${escapeHtml(dive.tip)}</p>
+      </div>`;
+    })
+    .join("");
+}
+
 function genderLabel(g: AnalyzeResponseBody["gender"] | undefined): string {
   if (g === "male") return "Male";
   if (g === "female") return "Female";
@@ -67,6 +92,12 @@ export function buildFullPlanEmailHtml(data: AnalyzeResponseBody): string {
       <tbody>${rows}</tbody>
     </table>
     ${weeks}
+    ${
+      data.eventDeepDives?.length
+        ? `<h2 style="font-family:Georgia,serif;font-size:18px;color:#4ade80;margin:28px 0 8px;">Event deep-dives (under 75 pts)</h2>
+    ${deepDivesForEmail(data)}`
+        : ""
+    }
     <p style="margin-top:32px;font-size:12px;color:#737373;border-top:1px solid #333;padding-top:16px;">
       Train to Pass — traintopass.com
     </p>
