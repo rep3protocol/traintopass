@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow, Bebas_Neue } from "next/font/google";
+import { Barlow, Bebas_Neue, DM_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 
@@ -14,6 +14,13 @@ const barlow = Barlow({
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   variable: "--font-barlow",
+  display: "swap",
+});
+
+const dmMono = DM_Mono({
+  weight: ["400", "500"],
+  subsets: ["latin"],
+  variable: "--font-dm-mono",
   display: "swap",
 });
 
@@ -49,7 +56,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${bebas.variable} ${barlow.variable} min-h-screen bg-forge-bg font-body antialiased`}
+        className={`${bebas.variable} ${barlow.variable} ${dmMono.variable} min-h-screen bg-forge-bg font-body antialiased`}
       >
         <AuthProvider>{children}</AuthProvider>
       </body>

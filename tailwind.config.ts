@@ -19,6 +19,7 @@ const config: Config = {
       fontFamily: {
         heading: ["var(--font-bebas)", "sans-serif"],
         body: ["var(--font-barlow)", "sans-serif"],
+        mono: ["var(--font-dm-mono)", "ui-monospace", "monospace"],
       },
     },
   },

@@ -23,6 +23,24 @@ type GeneralProgramRow = {
   created_at: string | Date;
 };
 
+type UnitSummary = {
+  id: string;
+  name: string;
+  memberCount: number;
+  aftTestDate: string | null;
+};
+
+function daysUntilDate(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = new Date(iso + "T12:00:00").getTime();
+  if (Number.isNaN(t)) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const target = new Date(t);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - now.getTime()) / 86400000);
+}
+
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -33,6 +51,7 @@ export default async function DashboardPage() {
   let generalProgram: GeneralProgramRow | null = null;
   let initialRank: RankId = "E-1";
   let initialStreak = 0;
+  let unitSummary: UnitSummary | null = null;
   const url = process.env.DATABASE_URL;
   if (url?.trim()) {
     try {
@@ -88,6 +107,35 @@ export default async function DashboardPage() {
       }
     } catch {
       /* silent */
+    }
+    try {
+      const sql = neon(url);
+      const ug = await sql`
+        SELECT
+          g.id::text,
+          g.name,
+          g.aft_test_date,
+          (SELECT COUNT(*)::int FROM group_members gm WHERE gm.group_id = g.id) AS member_count
+        FROM group_members me
+        INNER JOIN "groups" g ON g.id = me.group_id
+        WHERE me.user_id = ${session.user.id}::uuid
+        ORDER BY g.created_at ASC
+        LIMIT 1
+      `;
+      const u0 = (ug as Record<string, unknown>[])[0];
+      if (u0?.id) {
+        const ad = u0.aft_test_date;
+        const aftStr =
+          ad != null ? String(ad).slice(0, 10) : null;
+        unitSummary = {
+          id: String(u0.id),
+          name: String(u0.name ?? "Unit"),
+          memberCount: Number(u0.member_count ?? 0),
+          aftTestDate: aftStr,
+        };
+      }
+    } catch {
+      unitSummary = null;
     }
   }
 
@@ -170,6 +218,60 @@ export default async function DashboardPage() {
               className="inline-block border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
             >
               Build my program →
+            </Link>
+          )}
+        </section>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+          <h2 className="font-heading text-xl text-white tracking-wide">
+            MY UNIT
+          </h2>
+          {unitSummary ? (
+            <>
+              <p className="text-sm text-neutral-200 font-medium">
+                {unitSummary.name}
+              </p>
+              <p className="text-xs text-neutral-500 uppercase tracking-widest">
+                {unitSummary.memberCount} members
+              </p>
+              {unitSummary.aftTestDate
+                ? (() => {
+                    const d = daysUntilDate(unitSummary.aftTestDate);
+                    if (d == null) return null;
+                    const label =
+                      d < 0
+                        ? `${Math.abs(d)} days since unit AFT date`
+                        : d === 0
+                          ? "Unit AFT is today"
+                          : `${d} days until unit AFT`;
+                    return (
+                      <p
+                        className={
+                          d < 0
+                            ? "text-sm text-neutral-400"
+                            : d < 14
+                              ? "text-sm text-[#facc15]"
+                              : "text-sm text-forge-accent"
+                        }
+                      >
+                        {label}
+                      </p>
+                    );
+                  })()
+                : null}
+              <Link
+                href={`/groups/${unitSummary.id}`}
+                className="inline-block border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
+              >
+                View unit →
+              </Link>
+            </>
+          ) : (
+            <Link
+              href="/groups"
+              className="inline-block border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
+            >
+              Join or create a unit →
             </Link>
           )}
         </section>
