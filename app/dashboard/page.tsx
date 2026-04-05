@@ -31,6 +31,12 @@ type UnitSummary = {
   aftTestDate: string | null;
 };
 
+type EnlistmentSummary = {
+  component: string;
+  targetDate: string | null;
+  maxWeekCompleted: number;
+};
+
 function daysUntilDate(iso: string | null): number | null {
   if (!iso) return null;
   const t = new Date(iso + "T12:00:00").getTime();
@@ -53,6 +59,7 @@ export default async function DashboardPage() {
   let initialRank: RankId = "E-1";
   let initialStreak = 0;
   let unitSummary: UnitSummary | null = null;
+  let enlistmentSummary: EnlistmentSummary | null = null;
   const url = process.env.DATABASE_URL;
   if (url?.trim()) {
     try {
@@ -138,6 +145,33 @@ export default async function DashboardPage() {
     } catch {
       unitSummary = null;
     }
+    try {
+      const sql = neon(url);
+      const ep = await sql`
+        SELECT
+          ep.component,
+          ep.target_date,
+          COALESCE(
+            (SELECT MAX(p.week_number)::int FROM enlistment_progress p WHERE p.user_id = ep.user_id),
+            0
+          ) AS max_week_completed
+        FROM enlistment_profiles ep
+        WHERE ep.user_id = ${session.user.id}::uuid
+        LIMIT 1
+      `;
+      const e0 = (ep as Record<string, unknown>[])[0];
+      if (e0?.component != null) {
+        const td = e0.target_date;
+        enlistmentSummary = {
+          component: String(e0.component ?? ""),
+          targetDate:
+            td != null ? String(td).slice(0, 10) : null,
+          maxWeekCompleted: Number(e0.max_week_completed ?? 0),
+        };
+      }
+    } catch {
+      enlistmentSummary = null;
+    }
   }
 
   const displayName =
@@ -191,6 +225,65 @@ export default async function DashboardPage() {
             Run calculator
           </Link>
         </div>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+          <h2 className="font-heading text-xl text-white tracking-wide">
+            ENLISTMENT PREP
+          </h2>
+          {enlistmentSummary ? (
+            <>
+              <p className="text-sm text-neutral-200">
+                Army · {enlistmentSummary.component}
+              </p>
+              {enlistmentSummary.targetDate
+                ? (() => {
+                    const d = daysUntilDate(enlistmentSummary.targetDate);
+                    if (d == null) return null;
+                    const label =
+                      d < 0
+                        ? `${Math.abs(d)} days past target date`
+                        : d === 0
+                          ? "Target date is today"
+                          : `${d} days until target enlistment date`;
+                    return (
+                      <p
+                        className={
+                          d < 0
+                            ? "text-sm text-neutral-400"
+                            : d < 60
+                              ? "text-sm text-[#facc15]"
+                              : "text-sm text-[#4ade80]"
+                        }
+                      >
+                        {label}
+                      </p>
+                    );
+                  })()
+                : null}
+              <p className="text-xs text-neutral-500">
+                Current focus: Week{" "}
+                {Math.min(
+                  12,
+                  enlistmentSummary.maxWeekCompleted + 1
+                )}{" "}
+                of 12
+              </p>
+              <Link
+                href="/enlist/results"
+                className="inline-block border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
+              >
+                View my plan →
+              </Link>
+            </>
+          ) : (
+            <Link
+              href="/enlist"
+              className="inline-block text-sm text-forge-accent hover:underline"
+            >
+              Preparing to enlist? Start here →
+            </Link>
+          )}
+        </section>
 
         <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
           <h2 className="font-heading text-xl text-white tracking-wide">

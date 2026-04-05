@@ -70,6 +70,20 @@ export const PATCHES = {
     emoji: "🏆",
     color: "#facc15",
   },
+  civilian_ready: {
+    key: "civilian_ready",
+    name: "Civilian Ready",
+    description: "Complete the pre-enlistment assessment",
+    emoji: "🎯",
+    color: "#4ade80",
+  },
+  future_soldier: {
+    key: "future_soldier",
+    name: "Future Soldier",
+    description: "Complete all 12 weeks of enlistment prep",
+    emoji: "🪖",
+    color: "#facc15",
+  },
 } as const;
 
 export type PatchKey = keyof typeof PATCHES;

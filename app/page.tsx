@@ -130,9 +130,9 @@ export default function Home() {
 
         <section className="mt-20 w-full max-w-5xl text-left">
           <h2 className="font-heading text-3xl sm:text-4xl text-white tracking-wide text-center">
-            TWO WAYS TO TRAIN
+            THREE WAYS TO TRAIN
           </h2>
-          <div className="mt-10 grid gap-6 md:grid-cols-2">
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
             <div className="border-2 border-forge-accent bg-forge-panel p-6 sm:p-8 flex flex-col gap-4">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-forge-accent">
                 AFT PREP
@@ -168,6 +168,24 @@ export default function Home() {
                 className="inline-block w-full text-center border-2 border-forge-accent bg-transparent py-3 font-body text-sm font-semibold uppercase tracking-widest text-forge-accent hover:bg-forge-accent hover:text-forge-bg transition-colors"
               >
                 Build My Program →
+              </Link>
+            </div>
+            <div className="border-2 border-forge-accent bg-forge-panel p-6 sm:p-8 flex flex-col gap-4">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-forge-accent">
+                PRE-ENLISTMENT
+              </span>
+              <h3 className="font-heading text-2xl sm:text-3xl text-white tracking-wide">
+                Not Enlisted Yet? Start Here.
+              </h3>
+              <p className="text-sm text-neutral-400 leading-relaxed flex-1">
+                A 12-week AI prep plan to get you ready for the Army fitness
+                test before you even ship to basic training.
+              </p>
+              <Link
+                href="/enlist"
+                className="inline-block w-full text-center border-2 border-forge-accent bg-transparent py-3 font-body text-sm font-semibold uppercase tracking-widest text-forge-accent hover:bg-forge-accent hover:text-forge-bg transition-colors"
+              >
+                Start My Prep →
               </Link>
             </div>
           </div>

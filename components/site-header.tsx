@@ -32,6 +32,12 @@ export function SiteHeader() {
         >
           Units
         </Link>
+        <Link
+          href="/enlist"
+          className="text-sm text-neutral-500 hover:text-forge-accent uppercase tracking-widest"
+        >
+          Enlist Prep
+        </Link>
       </div>
       <div className="flex flex-wrap items-center gap-4 sm:gap-6">
         {status === "loading" ? (

@@ -192,3 +192,46 @@ export function progressTone(score: number): "green" | "yellow" | "red" {
   if (score >= 60) return "yellow";
   return "red";
 }
+
+/** Maps calendar age to AFT age-group bucket (same tables as calculator). */
+export function ageYearsToAgeGroup(age: number): AgeGroup {
+  if (!Number.isFinite(age) || age < 17) return "17-21";
+  if (age <= 21) return "17-21";
+  if (age <= 26) return "22-26";
+  if (age <= 31) return "27-31";
+  if (age <= 36) return "32-36";
+  if (age <= 41) return "37-41";
+  if (age <= 46) return "42-46";
+  if (age <= 51) return "47-51";
+  if (age <= 56) return "52-56";
+  if (age <= 61) return "57-61";
+  return "62+";
+}
+
+/**
+ * Official 60-point (minimum pass) raw standards for the user's age group and gender.
+ * For use in coaching prompts — tables match scoreEvent() inputs.
+ */
+export function formatAftPassingMinimumsForPrompt(
+  age: number,
+  gender: Gender
+): string {
+  const ag = ageYearsToAgeGroup(age);
+  const i = ageIndex(ag);
+  if (i < 0) return "";
+
+  const mdlMin = gender === "male" ? MDL_M_MIN60[i] : MDL_F_MIN60[i];
+  const hrpMin = gender === "male" ? HRP_M_MIN60[i] : HRP_F_MIN60[i];
+  const sdcMax = gender === "male" ? SDC_M_T60[i] : SDC_F_T60[i];
+  const plkMin = PLK_T60[i];
+  const twoMrMax = gender === "male" ? MR_M_T60[i] : MR_F_T60[i];
+
+  return [
+    `AFT age group: ${ag} (${gender === "male" ? "Male" : "Female"}). Minimum passing (60-point) raw standards from the official May 2025 tables:`,
+    `- MDL (3-rep hex/trap bar deadlift): at least ${mdlMin} lb`,
+    `- HRP (Hand-Release Push-Up, 2 min): at least ${hrpMin} reps`,
+    `- SDC (Sprint-Drag-Carry): total time must be ${formatSecondsAsMmSs(sdcMax)} or faster`,
+    `- PLK (plank): hold at least ${formatSecondsAsMmSs(plkMin)}`,
+    `- 2MR (two-mile run): finish in ${formatSecondsAsMmSs(twoMrMax)} or faster`,
+  ].join("\n");
+}
