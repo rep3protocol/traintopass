@@ -109,28 +109,33 @@ export function RankBadge({
   );
 }
 
-/** Representative badge per pay grade for marketing ladder (E-4 = Corporal, E-8 = MSG, E-9 = SGM). */
-export const LADDER_REPRESENTATIVE_RANKS: RankBadgeVariant[] = [
-  "E-1",
-  "E-2",
-  "E-3",
-  "E-4-CPL",
-  "E-5",
-  "E-6",
-  "E-7",
-  "E-8-MSG",
-  "E-9-SGM",
-];
-
-export const LADDER_LABELS: Record<string, string> = {
-  "E-1": "Private",
-  "E-2": "Private",
-  "E-3": "Private First Class",
-  "E-4-CPL": "Corporal / Specialist",
-  "E-5": "Sergeant",
-  "E-6": "Staff Sergeant",
-  "E-7": "Sergeant First Class",
-  "E-8-MSG": "Master Sergeant / First Sergeant",
-  "E-9-SGM":
-    "Sergeant Major / Command Sergeant Major / Sergeant Major of the Army",
+/** One row per pay grade on the landing-page rank ladder (tiers with variants list every badge). */
+export type LandingLadderStep = {
+  key: string;
+  ranks: RankBadgeVariant[];
+  label: string;
 };
+
+export const LANDING_LADDER_STEPS: LandingLadderStep[] = [
+  { key: "E-1", ranks: ["E-1"], label: "Private" },
+  { key: "E-2", ranks: ["E-2"], label: "Private" },
+  { key: "E-3", ranks: ["E-3"], label: "Private First Class" },
+  {
+    key: "E-4",
+    ranks: ["E-4-CPL", "E-4-SPC"],
+    label: "Corporal / Specialist",
+  },
+  { key: "E-5", ranks: ["E-5"], label: "Sergeant" },
+  { key: "E-6", ranks: ["E-6"], label: "Staff Sergeant" },
+  { key: "E-7", ranks: ["E-7"], label: "Sergeant First Class" },
+  {
+    key: "E-8",
+    ranks: ["E-8-MSG", "E-8-1SG"],
+    label: "Master Sergeant / First Sergeant",
+  },
+  {
+    key: "E-9",
+    ranks: ["E-9-SGM", "E-9-CSM", "E-9-SMA"],
+    label: "SGM / CSM / SMA",
+  },
+];

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
-import { RankBadge, LADDER_REPRESENTATIVE_RANKS, LADDER_LABELS } from "@/components/rank-badge";
+import { LANDING_LADDER_STEPS, RankBadge } from "@/components/rank-badge";
 import {
   parseRankId,
   rankDisplayGrade,
@@ -152,14 +152,28 @@ export function LandingRankLadder() {
         promotion
       </p>
       <div className="mt-10 flex gap-4 sm:gap-6 overflow-x-auto pb-4 justify-start sm:justify-center">
-        {LADDER_REPRESENTATIVE_RANKS.map((r) => (
+        {LANDING_LADDER_STEPS.map((step) => (
           <div
-            key={r}
-            className="flex flex-col items-center gap-2 shrink-0 w-[4.5rem] sm:w-auto"
+            key={step.key}
+            className="flex flex-col items-center gap-2 shrink-0 max-w-[11rem] sm:max-w-none"
           >
-            <RankBadge rank={r} size="small" />
+            <div className="flex items-center justify-center gap-0.5">
+              {step.ranks.map((r, i) => (
+                <Fragment key={r}>
+                  {i > 0 ? (
+                    <span
+                      className="text-[10px] text-neutral-600 leading-none px-0.5 select-none"
+                      aria-hidden
+                    >
+                      /
+                    </span>
+                  ) : null}
+                  <RankBadge rank={r} size="small" />
+                </Fragment>
+              ))}
+            </div>
             <span className="text-[9px] sm:text-[10px] tracking-wide text-neutral-500 text-center leading-tight">
-              {LADDER_LABELS[r] ?? rankName(r)}
+              {step.label}
             </span>
           </div>
         ))}
