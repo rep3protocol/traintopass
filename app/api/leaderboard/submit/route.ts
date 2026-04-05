@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+import { auth } from "@/auth";
 import { getNeonSql } from "@/lib/db";
 import type { AgeGroup } from "@/lib/aft-scoring";
 import { AGE_GROUPS } from "@/lib/aft-scoring";
@@ -14,6 +15,9 @@ export async function POST(req: Request) {
   if (!sql) {
     return NextResponse.json({ ok: true, skipped: true });
   }
+
+  const session = await auth();
+  const userId = session?.user?.id ?? null;
 
   let body: { ageGroup?: string; gender?: string; totalScore?: number };
   try {
@@ -51,10 +55,24 @@ export async function POST(req: Request) {
         submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
-    await sql`
-      INSERT INTO leaderboard (age_group, gender, total_score)
-      VALUES (${ageGroup}, ${gender}, ${totalScore})
-    `;
+    try {
+      await sql`
+        ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS user_id UUID
+      `;
+    } catch {
+      /* silent */
+    }
+    if (userId) {
+      await sql`
+        INSERT INTO leaderboard (age_group, gender, total_score, user_id)
+        VALUES (${ageGroup}, ${gender}, ${totalScore}, ${userId}::uuid)
+      `;
+    } else {
+      await sql`
+        INSERT INTO leaderboard (age_group, gender, total_score)
+        VALUES (${ageGroup}, ${gender}, ${totalScore})
+      `;
+    }
   } catch (e) {
     const message = e instanceof Error ? e.message : "Database error";
     return NextResponse.json({ error: message }, { status: 500 });

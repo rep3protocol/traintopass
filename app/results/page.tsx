@@ -20,6 +20,8 @@ import {
 } from "@/lib/analyze-types";
 import { PlanWeekMarkdown } from "@/components/plan-week-markdown";
 import { ProgressChart } from "@/components/progress-chart";
+import { RankBadge } from "@/components/rank-badge";
+import { parseRankId, rankDisplayGrade, rankName } from "@/lib/ranks";
 import { downloadTrainingPlanPdf } from "@/lib/generate-plan-pdf";
 import {
   appendHistoryFromResult,
@@ -193,6 +195,16 @@ export default function ResultsPage() {
   const [regenMsgIndex, setRegenMsgIndex] = useState(0);
   const [planGenError, setPlanGenError] = useState<string | null>(null);
   const pendingPlanEmailSendRef = useRef(false);
+  const [rankCalc, setRankCalc] = useState<{
+    rank?: string;
+    rankName?: string;
+    rankChanged?: boolean;
+  } | null>(null);
+  const [rankPromotion, setRankPromotion] = useState<{
+    rank: string;
+    rankName: string;
+  } | null>(null);
+  const planViewMarked = useRef(false);
 
   const data: AnalyzeResponseBody | null =
     stored && !isAnalyzeError(stored) ? stored : null;
@@ -235,8 +247,22 @@ export default function ResultsPage() {
       } catch {
         setHistory(readHistory());
       }
+      try {
+        const cr = await fetch("/api/rank/calculate", { method: "POST" });
+        if (cr.ok) {
+          setRankCalc(
+            (await cr.json()) as {
+              rank?: string;
+              rankName?: string;
+              rankChanged?: boolean;
+            }
+          );
+        }
+      } catch {
+        /* silent */
+      }
     })();
-  }, [session, sessionStatus]);
+  }, [session, sessionStatus, data]);
 
   useEffect(() => {
     if (!data || sessionStatus === "loading") return;
@@ -262,6 +288,25 @@ export default function ResultsPage() {
         /* silent */
       }
       try {
+        const cr = await fetch("/api/rank/calculate", { method: "POST" });
+        if (cr.ok) {
+          const j = (await cr.json()) as {
+            rank?: string;
+            rankName?: string;
+            rankChanged?: boolean;
+          };
+          setRankCalc(j);
+          if (j.rankChanged) {
+            setRankPromotion({
+              rank: String(j.rank ?? "E-1"),
+              rankName: String(j.rankName ?? ""),
+            });
+          }
+        }
+      } catch {
+        /* silent */
+      }
+      try {
         const res = await fetch("/api/history");
         if (!res.ok) throw new Error();
         const json = (await res.json()) as {
@@ -276,6 +321,18 @@ export default function ResultsPage() {
       }
     })();
   }, [data, session, sessionStatus]);
+
+  useEffect(() => {
+    if (!data || !session?.user || planViewMarked.current) return;
+    planViewMarked.current = true;
+    void fetch("/api/rank/plan-viewed", { method: "POST" }).catch(() => {});
+  }, [data, session?.user]);
+
+  useEffect(() => {
+    if (!rankPromotion) return;
+    const t = setTimeout(() => setRankPromotion(null), 12000);
+    return () => clearTimeout(t);
+  }, [rankPromotion]);
 
   useEffect(() => {
     if (sessionStatus === "loading" || !session?.user) return;
@@ -600,6 +657,18 @@ export default function ResultsPage() {
 
       <SiteHeader />
 
+      {rankPromotion ? (
+        <div className="border-b border-[#4ade80]/40 bg-[#161616] px-4 py-3">
+          <div className="max-w-3xl mx-auto flex flex-wrap items-center gap-4 text-[#4ade80] text-xs sm:text-sm font-semibold tracking-wide">
+            <span className="text-[#4ade80]">
+              <span className="uppercase tracking-wider">RANK UP! </span>
+              <span>You&apos;ve been promoted to {rankPromotion.rankName}</span>
+            </span>
+            <RankBadge rank={parseRankId(rankPromotion.rank)} size="small" />
+          </div>
+        </div>
+      ) : null}
+
       <main className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto w-full space-y-10">
         <div className="flex flex-wrap items-center gap-3">
           <Link
@@ -610,18 +679,38 @@ export default function ResultsPage() {
           </Link>
         </div>
 
-        <div>
-          <h1 className="font-heading text-4xl sm:text-5xl text-white tracking-wide">
-            Results
-          </h1>
-          <p className="mt-3 text-sm text-neutral-400">
-            <span className="text-neutral-500">Gender:</span>{" "}
-            {genderLabel(data.gender)}
-            <span className="mx-3 text-forge-border">|</span>
-            <span className="text-neutral-500">Age group:</span>{" "}
-            {data.ageGroup ?? "—"}
-          </p>
-          <div className="mt-6 border border-forge-border bg-forge-panel p-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="font-heading text-4xl sm:text-5xl text-white tracking-wide">
+              Results
+            </h1>
+            <p className="mt-3 text-sm text-neutral-400">
+              <span className="text-neutral-500">Gender:</span>{" "}
+              {genderLabel(data.gender)}
+              <span className="mx-3 text-forge-border">|</span>
+              <span className="text-neutral-500">Age group:</span>{" "}
+              {data.ageGroup ?? "—"}
+            </p>
+          </div>
+          {session?.user && rankCalc?.rank ? (
+            <div className="flex items-center gap-3 border border-forge-border bg-forge-panel px-3 py-2 shrink-0">
+              <RankBadge rank={parseRankId(rankCalc.rank)} size="small" />
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-widest text-neutral-500">
+                  Rank
+                </p>
+                <p className="text-xs font-semibold text-white tracking-wide leading-snug">
+                  {rankCalc.rankName ?? rankName(parseRankId(rankCalc.rank))}
+                </p>
+                <p className="text-[10px] text-forge-accent mt-0.5">
+                  {rankDisplayGrade(parseRankId(rankCalc.rank))}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-6 border border-forge-border bg-forge-panel p-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-widest text-neutral-500">
                 Total score
@@ -646,16 +735,15 @@ export default function ResultsPage() {
             </div>
           </div>
 
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={() => void handleShareScore()}
-              disabled={shareBusy}
-              className="border-2 border-forge-accent px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent bg-forge-panel hover:bg-forge-bg/80 disabled:opacity-50 transition-colors"
-            >
-              {shareBusy ? "Preparing…" : "Share My Score"}
-            </button>
-          </div>
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => void handleShareScore()}
+            disabled={shareBusy}
+            className="border-2 border-forge-accent px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent bg-forge-panel hover:bg-forge-bg/80 disabled:opacity-50 transition-colors"
+          >
+            {shareBusy ? "Preparing…" : "Share My Score"}
+          </button>
         </div>
 
         <div className="space-y-4">
@@ -1071,11 +1159,21 @@ export default function ResultsPage() {
 
       <div
         ref={shareCardRef}
-        className="fixed left-[-10000px] top-0 w-[1080px] h-[1080px] bg-[#0a0a0a] text-white flex flex-col p-14 box-border"
+        className="fixed left-[-10000px] top-0 w-[1080px] h-[1080px] bg-[#0a0a0a] text-white flex flex-col p-14 box-border relative"
         aria-hidden
       >
-        <div className="font-heading text-6xl tracking-[0.2em] text-white text-center">
-          TRAIN TO PASS
+        <div className="relative w-full shrink-0 min-h-[120px]">
+          <div className="font-heading text-6xl tracking-[0.2em] text-white text-center px-32">
+            TRAIN TO PASS
+          </div>
+          {rankCalc?.rank ? (
+            <div className="absolute top-0 right-0 flex flex-col items-end gap-2">
+              <RankBadge rank={parseRankId(rankCalc.rank)} size="large" />
+              <span className="text-right text-xl font-semibold tracking-wide text-neutral-300 max-w-[260px] leading-tight">
+                {rankCalc.rankName ?? rankName(parseRankId(rankCalc.rank))}
+              </span>
+            </div>
+          ) : null}
         </div>
         <div className="mt-10 flex-1 flex flex-col items-center justify-center">
           <p

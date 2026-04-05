@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { LandingRankLadder } from "@/components/dashboard-rank-panel";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
@@ -171,6 +172,8 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        <LandingRankLadder />
 
         <Link
           href="/calculate"

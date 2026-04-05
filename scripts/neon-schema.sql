@@ -10,7 +10,12 @@ CREATE TABLE IF NOT EXISTS users (
   password TEXT,
   stripe_customer_id TEXT,
   google_id TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  current_rank TEXT DEFAULT 'E-1',
+  rank_updated_at TIMESTAMPTZ,
+  activity_streak INTEGER DEFAULT 0,
+  last_active_date DATE,
+  plan_week_12_viewed BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS accounts (

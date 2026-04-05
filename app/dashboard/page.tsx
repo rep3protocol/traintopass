@@ -2,10 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { neon } from "@neondatabase/serverless";
 import { auth } from "@/auth";
+import { DashboardRankPanel } from "@/components/dashboard-rank-panel";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { EVENT_ORDER, type EventKey } from "@/lib/aft-scoring";
 import { isHistoryOverallPass } from "@/lib/history";
+import { parseRankId, type RankId } from "@/lib/ranks";
 import { getUserSubscriptionPaid } from "@/lib/user-subscription";
 
 type Row = {
@@ -29,6 +31,8 @@ export default async function DashboardPage() {
 
   let rows: Row[] = [];
   let generalProgram: GeneralProgramRow | null = null;
+  let initialRank: RankId = "E-1";
+  let initialStreak = 0;
   const url = process.env.DATABASE_URL;
   if (url?.trim()) {
     try {
@@ -70,6 +74,21 @@ export default async function DashboardPage() {
     } catch {
       generalProgram = null;
     }
+    try {
+      const sql = neon(url);
+      const ur = await sql`
+        SELECT current_rank, activity_streak
+        FROM users
+        WHERE id = ${session.user.id}::uuid
+      `;
+      const u0 = (ur as Record<string, unknown>[])[0];
+      if (u0) {
+        initialRank = parseRankId(String(u0.current_rank ?? ""));
+        initialStreak = Number(u0.activity_streak ?? 0);
+      }
+    } catch {
+      /* silent */
+    }
   }
 
   const displayName =
@@ -96,6 +115,12 @@ export default async function DashboardPage() {
             </span>
           </p>
         </div>
+
+        <DashboardRankPanel
+          paid={paid}
+          initialRank={initialRank}
+          initialStreak={initialStreak}
+        />
 
         <div>
           <Link
