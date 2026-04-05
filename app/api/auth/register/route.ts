@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
+import { generateUniqueUserReferralCode } from "@/lib/referral-code";
 
 export async function POST(req: Request) {
   const url = process.env.DATABASE_URL;
@@ -31,6 +32,12 @@ export async function POST(req: Request) {
   const sql = neon(url);
   const bcrypt = await import("bcryptjs");
   const hash = await bcrypt.hash(password, 12);
+  let referralCode: string;
+  try {
+    referralCode = await generateUniqueUserReferralCode();
+  } catch {
+    referralCode = "";
+  }
 
   try {
     const existing = await sql`
@@ -40,10 +47,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
     }
 
-    await sql`
-      INSERT INTO users (name, email, password, "emailVerified", image)
-      VALUES (${name || null}, ${email}, ${hash}, NULL, NULL)
-    `;
+    if (referralCode) {
+      await sql`
+        INSERT INTO users (name, email, password, "emailVerified", image, referral_code)
+        VALUES (${name || null}, ${email}, ${hash}, NULL, NULL, ${referralCode})
+      `;
+    } else {
+      await sql`
+        INSERT INTO users (name, email, password, "emailVerified", image)
+        VALUES (${name || null}, ${email}, ${hash}, NULL, NULL)
+      `;
+    }
   } catch {
     return NextResponse.json({ error: "Could not create account" }, { status: 500 });
   }

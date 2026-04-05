@@ -1,5 +1,9 @@
 import Stripe from "stripe";
 
+/**
+ * Stripe subscription status only (no referral free months).
+ * Complimentary access from referrals is handled in {@link getUserSubscriptionPaid}.
+ */
 export async function hasActiveStripeSubscription(
   stripeCustomerId: string | null | undefined
 ): Promise<boolean> {

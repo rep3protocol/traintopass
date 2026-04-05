@@ -5,10 +5,15 @@ import { weakestEventKeyFromScores } from "@/lib/award-patches";
 import { isPatchKey, PATCHES } from "@/lib/patches";
 import { EVENT_LABELS, type EventKey } from "@/lib/aft-scoring";
 import { parseRankId, rankName } from "@/lib/ranks";
+import { escapeHtml } from "@/lib/html-escape";
 import { getUserSubscriptionPaid } from "@/lib/user-subscription";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+function utcToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function tipForWeakestEvent(key: EventKey | null): string {
   if (!key) {
@@ -33,6 +38,7 @@ function buildDigestHtml(payload: {
   bestPrevWeek: number | null;
   newPatchNames: string[];
   weakTip: string;
+  challengeSummary: string | null;
 }): string {
   const delta =
     payload.bestThisWeek != null && payload.bestPrevWeek != null
@@ -52,6 +58,12 @@ function buildDigestHtml(payload: {
       ? `<p style="margin:16px 0 8px 0;color:#a3a3a3;font-size:13px;">New patches: <strong style="color:#4ade80;">${payload.newPatchNames.join(", ")}</strong></p>`
       : "";
 
+  const challengeBlock =
+    payload.challengeSummary && payload.challengeSummary.trim()
+      ? `<p style="margin:20px 0 8px 0;color:#737373;font-size:11px;text-transform:uppercase;letter-spacing:0.12em;">Today's challenge</p>
+          <p style="margin:0 0 16px 0;color:#d4d4d4;font-size:14px;line-height:1.55;">${escapeHtml(payload.challengeSummary.trim())}</p>`
+      : "";
+
   return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#0a0a0a;color:#e5e5e5;font-family:Georgia,serif;">
@@ -68,6 +80,7 @@ function buildDigestHtml(payload: {
           <p style="margin:0 0 8px 0;color:#737373;font-size:11px;text-transform:uppercase;letter-spacing:0.12em;">Score trend</p>
           <p style="margin:0 0 8px 0;color:#d4d4d4;font-size:14px;line-height:1.5;">${trend}</p>
           ${patchesBlock}
+          ${challengeBlock}
           <p style="margin:20px 0 8px 0;color:#737373;font-size:11px;text-transform:uppercase;letter-spacing:0.12em;">Focus this week</p>
           <p style="margin:0 0 24px 0;color:#d4d4d4;font-size:14px;line-height:1.55;">${payload.weakTip}</p>
           <a href="https://traintopass.com" style="display:inline-block;padding:12px 20px;background:#4ade80;color:#0a0a0a;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;text-decoration:none;">Keep Training →</a>
@@ -80,9 +93,22 @@ function buildDigestHtml(payload: {
 }
 
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  const auth = req.headers.get("authorization");
-  if (!secret || auth !== `Bearer ${secret}`) {
+  const authHeader = req.headers.get("authorization");
+  console.log("Authorization header:", authHeader);
+  console.log("CRON_SECRET:", process.env.CRON_SECRET);
+  if (
+    process.env.CRON_SECRET === undefined ||
+    process.env.CRON_SECRET === null ||
+    String(process.env.CRON_SECRET).trim() === ""
+  ) {
+    return NextResponse.json(
+      { error: "CRON_SECRET not configured" },
+      { status: 500 }
+    );
+  }
+  const token =
+    authHeader?.replace("Bearer ", "").trim() ?? "";
+  if (token !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -97,6 +123,25 @@ export async function GET(req: Request) {
   }
 
   const sql = neon(url);
+  const today = utcToday();
+  let globalChallengeSummary: string | null = null;
+  try {
+    const ch = (await sql`
+      SELECT title, description
+      FROM daily_challenges
+      WHERE challenge_date = ${today}::date
+      LIMIT 1
+    `) as { title: string; description: string }[];
+    if (ch[0]) {
+      globalChallengeSummary = `${ch[0].title}: ${ch[0].description}`.slice(
+        0,
+        400
+      );
+    }
+  } catch {
+    globalChallengeSummary = null;
+  }
+
   let candidates: {
     id: string;
     name: string | null;
@@ -216,6 +261,7 @@ export async function GET(req: Request) {
       bestPrevWeek,
       newPatchNames,
       weakTip,
+      challengeSummary: globalChallengeSummary,
     });
 
     try {

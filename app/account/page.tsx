@@ -2,9 +2,12 @@ import { redirect } from "next/navigation";
 import { neon } from "@neondatabase/serverless";
 import { auth } from "@/auth";
 import { AccountActions } from "@/components/account-actions";
+import { AccountNotificationSettings } from "@/components/account-notification-settings";
+import { AccountReferralSection } from "@/components/account-referral-section";
 import { ProfilePublicToggle } from "@/components/profile-public-toggle";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { generateUniqueUserReferralCode } from "@/lib/referral-code";
 import {
   getUserStripeCustomerId,
   getUserSubscriptionPaid,
@@ -18,18 +21,65 @@ export default async function AccountPage() {
   const stripeCustomerId = await getUserStripeCustomerId(session.user.id);
 
   let profilePublic = true;
+  let referralCode: string | null = null;
+  let totalReferred = 0;
+  let completedReferred = 0;
+  let pendingReferred = 0;
+
   const dbUrl = process.env.DATABASE_URL?.trim();
   if (dbUrl) {
     try {
       const sql = neon(dbUrl);
       const rows = (await sql`
-        SELECT profile_public FROM users WHERE id = ${session.user.id}::uuid
-      `) as { profile_public: boolean | null }[];
+        SELECT profile_public, referral_code
+        FROM users WHERE id = ${session.user.id}::uuid
+      `) as {
+        profile_public: boolean | null;
+        referral_code: string | null;
+      }[];
       if (rows[0]?.profile_public === false) profilePublic = false;
+      referralCode =
+        typeof rows[0]?.referral_code === "string"
+          ? rows[0].referral_code.trim()
+          : null;
+      if (!referralCode) {
+        try {
+          const code = await generateUniqueUserReferralCode();
+          await sql`
+            UPDATE users
+            SET referral_code = ${code}
+            WHERE id = ${session.user.id}::uuid
+              AND (referral_code IS NULL OR referral_code = '')
+          `;
+          referralCode = code;
+        } catch {
+          /* silent */
+        }
+      }
+    } catch {
+      /* silent */
+    }
+    try {
+      const sql = neon(dbUrl);
+      const stats = (await sql`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status = 'completed')::int AS done,
+          COUNT(*) FILTER (WHERE status = 'pending')::int AS pending
+        FROM referrals
+        WHERE referrer_id = ${session.user.id}::uuid
+      `) as { total: number; done: number; pending: number }[];
+      totalReferred = Number(stats[0]?.total ?? 0);
+      completedReferred = Number(stats[0]?.done ?? 0);
+      pendingReferred = Number(stats[0]?.pending ?? 0);
     } catch {
       /* silent */
     }
   }
+
+  const referralLink = referralCode
+    ? `https://traintopass.com/join?ref=${encodeURIComponent(referralCode)}`
+    : "";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -56,6 +106,18 @@ export default async function AccountPage() {
         </div>
 
         <ProfilePublicToggle initialPublic={profilePublic} />
+
+        {referralLink ? (
+          <AccountReferralSection
+            referralLink={referralLink}
+            totalReferred={totalReferred}
+            completedReferred={completedReferred}
+            pendingReferred={pendingReferred}
+            monthsEarned={completedReferred}
+          />
+        ) : null}
+
+        <AccountNotificationSettings />
 
         <AccountActions canOpenBillingPortal={!!stripeCustomerId} />
       </main>

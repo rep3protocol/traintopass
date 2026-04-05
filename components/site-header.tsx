@@ -38,6 +38,12 @@ export function SiteHeader() {
         >
           Enlist Prep
         </Link>
+        <Link
+          href="/challenge"
+          className="text-sm text-neutral-500 hover:text-forge-accent uppercase tracking-widest"
+        >
+          Challenge
+        </Link>
       </div>
       <div className="flex flex-wrap items-center gap-4 sm:gap-6">
         {status === "loading" ? (

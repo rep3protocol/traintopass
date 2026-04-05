@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isUuidParam } from "@/lib/group-route-helpers";
+import { sendUnitAnnouncement } from "@/lib/send-notification";
 import { neon } from "@neondatabase/serverless";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,8 @@ export async function POST(
     if (!row) {
       return NextResponse.json({ error: "Unable to post" }, { status: 503 });
     }
+
+    void sendUnitAnnouncement(groupId, message).catch(() => {});
 
     return NextResponse.json({
       announcement: {

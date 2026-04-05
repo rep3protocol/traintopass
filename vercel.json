@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/weekly-digest",
       "schedule": "0 12 * * 0"
+    },
+    {
+      "path": "/api/cron/generate-challenge",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/streak-reminder",
+      "schedule": "0 8 * * *"
     }
   ]
 }

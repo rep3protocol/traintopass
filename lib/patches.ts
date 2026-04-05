@@ -84,6 +84,20 @@ export const PATCHES = {
     emoji: "🪖",
     color: "#facc15",
   },
+  daily_warrior: {
+    key: "daily_warrior",
+    name: "Daily Warrior",
+    description: "Complete 7 daily challenges in a row",
+    emoji: "⚔️",
+    color: "#facc15",
+  },
+  iron_routine: {
+    key: "iron_routine",
+    name: "Iron Routine",
+    description: "Complete 30 daily challenges",
+    emoji: "🛡️",
+    color: "#facc15",
+  },
 } as const;
 
 export type PatchKey = keyof typeof PATCHES;

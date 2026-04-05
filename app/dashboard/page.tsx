@@ -8,8 +8,12 @@ import { SiteHeader } from "@/components/site-header";
 import { EVENT_ORDER, type EventKey } from "@/lib/aft-scoring";
 import { isHistoryOverallPass } from "@/lib/history";
 import { parseRankId, type RankId } from "@/lib/ranks";
+import { getChallengeConsecutiveDays } from "@/lib/challenge-stats";
 import { slugifyProfileName } from "@/lib/profile-slug";
 import { getUserSubscriptionPaid } from "@/lib/user-subscription";
+import { DashboardChallengeCard } from "@/components/dashboard-challenge-card";
+import { DashboardNotificationBanner } from "@/components/dashboard-notification-banner";
+import { ReferralApplyClient } from "@/components/referral-apply-client";
 
 type Row = {
   id: string;
@@ -60,6 +64,9 @@ export default async function DashboardPage() {
   let initialStreak = 0;
   let unitSummary: UnitSummary | null = null;
   let enlistmentSummary: EnlistmentSummary | null = null;
+  let challengeTitle: string | null = null;
+  let challengeCompleted = false;
+  let challengeStreak = 0;
   const url = process.env.DATABASE_URL;
   if (url?.trim()) {
     try {
@@ -172,6 +179,28 @@ export default async function DashboardPage() {
     } catch {
       enlistmentSummary = null;
     }
+    try {
+      const sql = neon(url);
+      const today = new Date().toISOString().slice(0, 10);
+      const ch = (await sql`
+        SELECT id::text, title FROM daily_challenges
+        WHERE challenge_date = ${today}::date
+        LIMIT 1
+      `) as { id: string; title: string }[];
+      if (ch[0]) {
+        challengeTitle = ch[0].title;
+        const cc = (await sql`
+          SELECT 1 FROM challenge_completions
+          WHERE challenge_id = ${ch[0].id}::uuid
+            AND user_id = ${session.user.id}::uuid
+          LIMIT 1
+        `) as unknown[];
+        challengeCompleted = cc.length > 0;
+      }
+      challengeStreak = await getChallengeConsecutiveDays(session.user.id);
+    } catch {
+      /* silent */
+    }
   }
 
   const displayName =
@@ -186,6 +215,8 @@ export default async function DashboardPage() {
     <div className="min-h-screen flex flex-col">
       <SiteHeader />
       <main className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto w-full space-y-10">
+        <ReferralApplyClient />
+        <DashboardNotificationBanner />
         <div>
           <h1 className="font-heading text-4xl sm:text-5xl text-white tracking-wide">
             Dashboard
@@ -206,6 +237,12 @@ export default async function DashboardPage() {
           paid={paid}
           initialRank={initialRank}
           initialStreak={initialStreak}
+        />
+
+        <DashboardChallengeCard
+          title={challengeTitle}
+          completed={challengeCompleted}
+          challengeStreak={challengeStreak}
         />
 
         <div>

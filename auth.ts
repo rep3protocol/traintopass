@@ -108,6 +108,24 @@ const sharedCallbacks: NextAuthConfig["callbacks"] = {
 };
 
 const sharedEvents: NextAuthConfig["events"] = {
+  async createUser({ user }) {
+    const sql = getAuthSql();
+    if (!sql || !user.id) return;
+    try {
+      const { generateUniqueUserReferralCode } = await import(
+        "@/lib/referral-code"
+      );
+      const code = await generateUniqueUserReferralCode();
+      await sql`
+        UPDATE users
+        SET referral_code = ${code}
+        WHERE id = ${user.id}
+          AND (referral_code IS NULL OR referral_code = '')
+      `;
+    } catch {
+      /* silent */
+    }
+  },
   async signIn({ user, account }) {
     if (account?.provider === "google" && account.providerAccountId) {
       const sql = getAuthSql();

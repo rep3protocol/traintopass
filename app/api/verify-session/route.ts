@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { neon } from "@neondatabase/serverless";
+import { creditReferrerOnFirstPayment } from "@/lib/referrals";
 
 export async function POST(req: Request) {
   const secret = process.env.STRIPE_SECRET_KEY;
@@ -54,6 +55,11 @@ export async function POST(req: Request) {
           `;
         } catch {
           /* silent — fall back to session-only unlock */
+        }
+        try {
+          await creditReferrerOnFirstPayment(userId);
+        } catch {
+          /* silent */
         }
       }
     }
