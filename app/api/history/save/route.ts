@@ -7,6 +7,7 @@ import type {
   GeneralProgramFitnessLevel,
   GeneralProgramGoal,
 } from "@/lib/general-program-types";
+import { checkAndAwardPatches } from "@/lib/award-patches";
 import { getUserSubscriptionPaid } from "@/lib/user-subscription";
 
 type GeneralProgramSaveBody = {
@@ -93,7 +94,15 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: "Could not save" }, { status: 500 });
     }
-    return NextResponse.json({ ok: true });
+    let newPatches: string[] = [];
+    try {
+      newPatches = await checkAndAwardPatches(session.user.id, {
+        completedGeneralProgram: true,
+      });
+    } catch {
+      /* silent */
+    }
+    return NextResponse.json({ ok: true, newPatches });
   }
 
   const body = raw as { result?: AnalyzeResponseBody };
@@ -112,6 +121,28 @@ export async function POST(req: Request) {
   const eventScoresJson = JSON.stringify(eventScores);
 
   const sql = neon(url);
+
+  let countBefore = 0;
+  let previousTotal: number | undefined;
+  try {
+    const cnt = (await sql`
+      SELECT COUNT(*)::int AS c FROM score_history WHERE user_id = ${session.user.id}::uuid
+    `) as { c: number }[];
+    countBefore = Number(cnt[0]?.c ?? 0);
+    if (countBefore > 0) {
+      const prev = (await sql`
+        SELECT total_score
+        FROM score_history
+        WHERE user_id = ${session.user.id}::uuid
+        ORDER BY created_at DESC
+        LIMIT 1
+      `) as { total_score: number }[];
+      previousTotal = Number(prev[0]?.total_score ?? 0);
+    }
+  } catch {
+    /* silent */
+  }
+
   try {
     await sql`
       INSERT INTO score_history (user_id, age_group, gender, total_score, event_scores)
@@ -127,5 +158,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Could not save" }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  const assessmentCount = countBefore + 1;
+  let newPatches: string[] = [];
+  try {
+    newPatches = await checkAndAwardPatches(session.user.id, {
+      totalScore: data.totalScore,
+      eventScores,
+      overallPassed: data.overallPassed,
+      assessmentCount,
+      previousAssessmentTotal: previousTotal,
+    });
+  } catch {
+    /* silent */
+  }
+
+  return NextResponse.json({ ok: true, newPatches });
 }

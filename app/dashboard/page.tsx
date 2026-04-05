@@ -8,6 +8,7 @@ import { SiteHeader } from "@/components/site-header";
 import { EVENT_ORDER, type EventKey } from "@/lib/aft-scoring";
 import { isHistoryOverallPass } from "@/lib/history";
 import { parseRankId, type RankId } from "@/lib/ranks";
+import { slugifyProfileName } from "@/lib/profile-slug";
 import { getUserSubscriptionPaid } from "@/lib/user-subscription";
 
 type Row = {
@@ -143,6 +144,9 @@ export default async function DashboardPage() {
     session.user.name?.trim() ||
     session.user.email?.split("@")[0] ||
     "Athlete";
+  const profileSlug = slugifyProfileName(
+    session.user.name?.trim() || session.user.email?.split("@")[0] || "user"
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -169,6 +173,15 @@ export default async function DashboardPage() {
           initialRank={initialRank}
           initialStreak={initialStreak}
         />
+
+        <div>
+          <Link
+            href={`/profile/${profileSlug}`}
+            className="inline-block text-xs font-semibold uppercase tracking-widest text-forge-accent hover:underline"
+          >
+            View My Profile →
+          </Link>
+        </div>
 
         <div>
           <Link

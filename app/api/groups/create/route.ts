@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { generateJoinCode } from "@/lib/groups";
+import { checkAndAwardPatches } from "@/lib/award-patches";
 import { getUserSubscriptionPaid } from "@/lib/user-subscription";
 import { neon } from "@neondatabase/serverless";
 
@@ -52,6 +53,11 @@ export async function POST(req: Request) {
         INSERT INTO group_members (group_id, user_id)
         VALUES (${groupId}::uuid, ${leaderId}::uuid)
       `;
+      try {
+        await checkAndAwardPatches(leaderId, { isGroupLeader: true });
+      } catch {
+        /* silent */
+      }
       return NextResponse.json({
         group: {
           id: row.id,

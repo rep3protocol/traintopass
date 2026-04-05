@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { neon } from "@neondatabase/serverless";
 import { auth } from "@/auth";
 import { AccountActions } from "@/components/account-actions";
+import { ProfilePublicToggle } from "@/components/profile-public-toggle";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -14,6 +16,20 @@ export default async function AccountPage() {
 
   const paid = await getUserSubscriptionPaid(session.user.id);
   const stripeCustomerId = await getUserStripeCustomerId(session.user.id);
+
+  let profilePublic = true;
+  const dbUrl = process.env.DATABASE_URL?.trim();
+  if (dbUrl) {
+    try {
+      const sql = neon(dbUrl);
+      const rows = (await sql`
+        SELECT profile_public FROM users WHERE id = ${session.user.id}::uuid
+      `) as { profile_public: boolean | null }[];
+      if (rows[0]?.profile_public === false) profilePublic = false;
+    } catch {
+      /* silent */
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -38,6 +54,8 @@ export default async function AccountPage() {
             </span>
           </p>
         </div>
+
+        <ProfilePublicToggle initialPublic={profilePublic} />
 
         <AccountActions canOpenBillingPortal={!!stripeCustomerId} />
       </main>

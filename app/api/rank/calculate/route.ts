@@ -11,6 +11,7 @@ import {
   type RankComputeContext,
   type RankId,
 } from "@/lib/ranks";
+import { checkAndAwardPatches } from "@/lib/award-patches";
 import { getUserSubscriptionPaid } from "@/lib/user-subscription";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,6 @@ function normalizeGenderLeaderboard(g: string): "male" | "female" | null {
 }
 
 async function leaderboardRankForUser(
-  // Neon overloads differ between call sites; keep loose for this helper.
   sql: (s: TemplateStringsArray, ...v: unknown[]) => Promise<unknown>,
   ageGroup: string,
   genderRaw: string,
@@ -211,6 +211,16 @@ export async function POST() {
   const next = getNextRankInfo(effective, ctx);
   const nextId = next.nextRank;
 
+  let newPatches: string[] = [];
+  try {
+    newPatches = await checkAndAwardPatches(session.user.id, {
+      streak: activityStreak,
+      leaderboardRank,
+    });
+  } catch {
+    /* silent */
+  }
+
   return NextResponse.json({
     rank: effective,
     rankName: rankName(effective),
@@ -221,5 +231,6 @@ export async function POST() {
     rankChanged,
     previousRank: rankChanged ? prevEffective : null,
     rawRank: raw,
+    newPatches,
   });
 }

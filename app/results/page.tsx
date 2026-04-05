@@ -31,6 +31,7 @@ import {
   readHistory,
   type HistoryEntry,
 } from "@/lib/history";
+import { isPatchKey, PATCHES, type PatchKey } from "@/lib/patches";
 import {
   LS_FREE_RESULTS_EMAIL_KEY,
   LS_PLAN_EMAIL_KEY,
@@ -204,6 +205,10 @@ export default function ResultsPage() {
     rank: string;
     rankName: string;
   } | null>(null);
+  const [patchPromotion, setPatchPromotion] = useState<PatchKey[] | null>(
+    null
+  );
+  const [sharePatchEmojis, setSharePatchEmojis] = useState<string[]>([]);
   const planViewMarked = useRef(false);
 
   const data: AnalyzeResponseBody | null =
@@ -248,15 +253,16 @@ export default function ResultsPage() {
         setHistory(readHistory());
       }
       try {
+        await fetch("/api/rank/streak", { method: "POST" });
         const cr = await fetch("/api/rank/calculate", { method: "POST" });
         if (cr.ok) {
-          setRankCalc(
-            (await cr.json()) as {
-              rank?: string;
-              rankName?: string;
-              rankChanged?: boolean;
-            }
-          );
+          const j = (await cr.json()) as {
+            rank?: string;
+            rankName?: string;
+            rankChanged?: boolean;
+            newPatches?: string[];
+          };
+          setRankCalc(j);
         }
       } catch {
         /* silent */
@@ -279,27 +285,46 @@ export default function ResultsPage() {
     sessionStorage.removeItem(STORAGE_NEW_RUN_FLAG);
     void (async () => {
       try {
-        await fetch("/api/history/save", {
+        const saveRes = await fetch("/api/history/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ result: data }),
         });
+        if (saveRes.ok) {
+          const sj = (await saveRes.json()) as { newPatches?: string[] };
+          const fromSave = (sj.newPatches ?? []).filter(isPatchKey);
+          if (fromSave.length > 0) {
+            setPatchPromotion((prev) => {
+              const merged = [...(prev ?? []), ...fromSave];
+              return Array.from(new Set(merged));
+            });
+          }
+        }
       } catch {
         /* silent */
       }
       try {
+        await fetch("/api/rank/streak", { method: "POST" });
         const cr = await fetch("/api/rank/calculate", { method: "POST" });
         if (cr.ok) {
           const j = (await cr.json()) as {
             rank?: string;
             rankName?: string;
             rankChanged?: boolean;
+            newPatches?: string[];
           };
           setRankCalc(j);
           if (j.rankChanged) {
             setRankPromotion({
               rank: String(j.rank ?? "E-1"),
               rankName: String(j.rankName ?? ""),
+            });
+          }
+          const fromRank = (j.newPatches ?? []).filter(isPatchKey);
+          if (fromRank.length > 0) {
+            setPatchPromotion((prev) => {
+              const merged = [...(prev ?? []), ...fromRank];
+              return Array.from(new Set(merged));
             });
           }
         }
@@ -319,6 +344,16 @@ export default function ResultsPage() {
       } catch {
         setHistory(readHistory());
       }
+      try {
+        const pr = await fetch("/api/patches/me");
+        if (pr.ok) {
+          const pj = (await pr.json()) as { patches?: string[] };
+          const keys = (pj.patches ?? []).filter(isPatchKey).slice(0, 5);
+          setSharePatchEmojis(keys.map((k) => PATCHES[k].emoji));
+        }
+      } catch {
+        /* silent */
+      }
     })();
   }, [data, session, sessionStatus]);
 
@@ -333,6 +368,30 @@ export default function ResultsPage() {
     const t = setTimeout(() => setRankPromotion(null), 12000);
     return () => clearTimeout(t);
   }, [rankPromotion]);
+
+  useEffect(() => {
+    if (!patchPromotion || patchPromotion.length === 0) return;
+    const t = setTimeout(() => setPatchPromotion(null), 14000);
+    return () => clearTimeout(t);
+  }, [patchPromotion]);
+
+  useEffect(() => {
+    if (sessionStatus === "loading" || !session?.user) {
+      setSharePatchEmojis([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const res = await fetch("/api/patches/me");
+        if (!res.ok) return;
+        const j = (await res.json()) as { patches?: string[] };
+        const keys = (j.patches ?? []).filter(isPatchKey).slice(0, 5);
+        setSharePatchEmojis(keys.map((k) => PATCHES[k].emoji));
+      } catch {
+        setSharePatchEmojis([]);
+      }
+    })();
+  }, [session?.user, sessionStatus]);
 
   useEffect(() => {
     if (sessionStatus === "loading" || !session?.user) return;
@@ -665,6 +724,27 @@ export default function ResultsPage() {
               <span>You&apos;ve been promoted to {rankPromotion.rankName}</span>
             </span>
             <RankBadge rank={parseRankId(rankPromotion.rank)} size="small" />
+          </div>
+        </div>
+      ) : null}
+
+      {patchPromotion && patchPromotion.length > 0 ? (
+        <div className="border-b border-[#4ade80]/30 bg-[#0f1a12] px-4 py-3">
+          <div className="max-w-3xl mx-auto text-[#4ade80] text-xs sm:text-sm font-semibold tracking-wide space-y-2">
+            {patchPromotion.length === 1 ? (
+              <p>
+                🎖️ New patch earned: {PATCHES[patchPromotion[0]].name}!
+              </p>
+            ) : (
+              <>
+                <p>🎖️ {patchPromotion.length} new patches earned!</p>
+                <ul className="list-disc list-inside text-neutral-300 font-normal text-xs space-y-1">
+                  {patchPromotion.map((k) => (
+                    <li key={k}>{PATCHES[k].name}</li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         </div>
       ) : null}
@@ -1219,6 +1299,13 @@ export default function ResultsPage() {
             );
           })}
         </div>
+        {sharePatchEmojis.length > 0 ? (
+          <div className="flex justify-center gap-3 mt-6 pt-4 border-t border-[#2a2a2a] text-4xl">
+            {sharePatchEmojis.map((em, i) => (
+              <span key={`${em}-${i}`}>{em}</span>
+            ))}
+          </div>
+        ) : null}
         <p className="mt-auto pt-10 text-center text-neutral-500 text-2xl tracking-widest">
           traintopass.com
         </p>

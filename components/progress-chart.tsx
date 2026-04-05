@@ -4,12 +4,14 @@ import type { HistoryEntry } from "@/lib/history";
 
 type Props = {
   history: HistoryEntry[];
+  /** Show assessment index (1, 2, …) instead of calendar dates */
+  labelMode?: "date" | "index";
 };
 
 /**
  * Line chart of total score over time (newest attempts may be unordered in storage).
  */
-export function ProgressChart({ history }: Props) {
+export function ProgressChart({ history, labelMode = "date" }: Props) {
   const sorted = [...history].sort((a, b) => a.timestamp - b.timestamp);
 
   if (sorted.length === 0) {
@@ -96,7 +98,7 @@ export function ProgressChart({ history }: Props) {
             strokeWidth={2}
           />
         ))}
-        {pts.map((p) => (
+        {pts.map((p, i) => (
           <text
             key={`l-${p.entry.historyId ?? p.entry.timestamp}`}
             x={p.x}
@@ -105,7 +107,7 @@ export function ProgressChart({ history }: Props) {
             fontSize={8}
             textAnchor="middle"
           >
-            {p.entry.date}
+            {labelMode === "index" ? String(i + 1) : p.entry.date}
           </text>
         ))}
       </svg>

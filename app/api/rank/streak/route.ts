@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { neon } from "@neondatabase/serverless";
+import { checkAndAwardPatches } from "@/lib/award-patches";
 import { parseRankId } from "@/lib/ranks";
 
 export const dynamic = "force-dynamic";
@@ -82,8 +83,19 @@ export async function POST() {
     }
   }
 
+  const outStreak = lastActive === today ? streak : nextStreak;
+  let newPatches: string[] = [];
+  try {
+    newPatches = await checkAndAwardPatches(session.user.id, {
+      streak: outStreak,
+    });
+  } catch {
+    /* silent */
+  }
+
   return NextResponse.json({
-    streak: lastActive === today ? streak : nextStreak,
+    streak: outStreak,
     rank: parseRankId(currentRank),
+    newPatches,
   });
 }

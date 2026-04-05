@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { checkAndAwardPatches } from "@/lib/award-patches";
 import { normalizeJoinCode } from "@/lib/groups";
 import { neon } from "@neondatabase/serverless";
 
@@ -66,6 +67,11 @@ export async function POST(req: Request) {
       INSERT INTO group_members (group_id, user_id)
       VALUES (${g.id}::uuid, ${uid}::uuid)
     `;
+    try {
+      await checkAndAwardPatches(uid, { isGroupMember: true });
+    } catch {
+      /* silent */
+    }
 
     const after = await sql`
       SELECT COUNT(*)::int AS c FROM group_members WHERE group_id = ${g.id}::uuid

@@ -100,6 +100,7 @@ If no events are below 75, use an empty array: "eventDeepDives": []
 Do not add commentary outside the JSON code block after Week 4.`;
 }
 
+/** AFT analysis (no user context). Achievement patches are awarded when results are saved via POST /api/history/save. */
 export async function POST(req: Request) {
   let body: AnalyzeRequestBody;
   try {
