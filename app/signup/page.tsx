@@ -41,7 +41,13 @@ export default function SignupPage() {
           password,
         }),
       });
-      const json = (await res.json()) as { error?: string };
+      let json: { error?: string } = {};
+      try {
+        json = (await res.json()) as { error?: string };
+      } catch {
+        setError("Unexpected server response. Please try again.");
+        return;
+      }
       if (!res.ok) {
         setError(json.error ?? "Could not create account.");
         return;
@@ -49,6 +55,8 @@ export default function SignupPage() {
 
       router.push("/login?registered=true");
       router.refresh();
+    } catch {
+      setError("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }

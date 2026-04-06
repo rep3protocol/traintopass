@@ -25,7 +25,7 @@ export function LoginForm() {
     setBusy(true);
     try {
       const res = await signIn("credentials", {
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
         redirect: false,
       });
@@ -35,6 +35,8 @@ export function LoginForm() {
       }
       router.push(callbackUrl);
       router.refresh();
+    } catch {
+      setError("Sign in failed. Please try again.");
     } finally {
       setBusy(false);
     }

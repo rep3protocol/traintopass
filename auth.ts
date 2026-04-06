@@ -99,9 +99,11 @@ const googleProviders =
     : [];
 
 const sharedCallbacks: NextAuthConfig["callbacks"] = {
-  async session({ session, user }) {
+  async session({ session, user, token }) {
     if (session.user) {
-      session.user.id = user.id;
+      const id =
+        user?.id != null ? String(user.id) : token?.sub != null ? String(token.sub) : undefined;
+      if (id) session.user.id = id;
     }
     return session;
   },
@@ -159,7 +161,9 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth(() =>
   const pool = new Pool({ connectionString: url });
   return {
     adapter: PostgresAdapter(pool),
-    session: { strategy: "database" },
+    // Credentials provider always issues a JWT cookie; database sessions only work for OAuth.
+    // Using JWT for all sign-in methods keeps credentials and Google working with the same adapter.
+    session: { strategy: "jwt" },
     trustHost: true,
     pages: { signIn: "/login" },
     providers: [...googleProviders, credentialProvider],
