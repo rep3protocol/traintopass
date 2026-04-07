@@ -52,31 +52,6 @@ export const EVENT_LABELS: Record<EventKey, string> = {
 
 /** Official AFT tables — Army Fitness Test Score Tables, Approved 15 May 2025, Effective 1 June 2025. Index matches AGE_GROUPS order. */
 
-const MDL_M_MAX = [340, 350, 350, 350, 350, 350, 340, 330, 250, 230];
-const MDL_F_MAX = [220, 230, 240, 230, 220, 210, 200, 190, 170, 170];
-const MDL_M_MIN60 = [150, 150, 150, 140, 140, 140, 140, 140, 140, 140];
-const MDL_F_MIN60 = [120, 120, 120, 120, 120, 120, 120, 120, 120, 120];
-
-const HRP_M_MAX = [58, 61, 62, 60, 59, 57, 55, 51, 46, 43];
-const HRP_F_MAX = [53, 50, 48, 47, 43, 40, 38, 36, 24, 24];
-const HRP_M_MIN60 = [15, 14, 14, 13, 12, 11, 11, 10, 10, 10];
-const HRP_F_MIN60 = [11, 11, 11, 11, 10, 10, 10, 10, 10, 10];
-
-/** SDC & 2MR: 100 pts at this time (seconds); lower is better. */
-const SDC_M_T100 = [89, 90, 90, 93, 96, 100, 105, 112, 118, 129];
-const SDC_M_T60 = [148, 151, 152, 156, 161, 165, 173, 180, 192, 196];
-const SDC_F_T100 = [115, 115, 115, 119, 122, 129, 131, 138, 146, 146];
-const SDC_F_T60 = [195, 195, 195, 202, 207, 222, 231, 243, 288, 288];
-
-/** PLK: same both genders; longer time = better. 100 pts / 60 pts thresholds in seconds. */
-const PLK_T100 = [220, 215, 210, 205, 200, 200, 200, 200, 200, 200];
-const PLK_T60 = [90, 85, 80, 75, 70, 70, 70, 70, 70, 70];
-
-const MR_M_T100 = [802, 805, 805, 822, 822, 845, 870, 909, 928, 928];
-const MR_M_T60 = [1197, 1185, 1185, 1244, 1244, 1324, 1324, 1370, 1416, 1416];
-const MR_F_T100 = [960, 930, 930, 948, 951, 960, 990, 1019, 1038, 1038];
-const MR_F_T60 = [1375, 1365, 1365, 1370, 1379, 1395, 1410, 1440, 1488, 1500];
-
 function ageIndex(ageGroup: AgeGroup): number {
   return AGE_GROUPS.indexOf(ageGroup);
 }
@@ -137,9 +112,6 @@ export function scoreEvent(
   gender: Gender,
   value: number
 ): number {
-  const i = ageIndex(ageGroup);
-  if (i < 0) return 0;
-
   if (event === "mdl") {
     return scoreFromOfficialRows(event, ageGroup, gender, value, false);
   }
@@ -203,12 +175,29 @@ export function formatAftPassingMinimumsForPrompt(
   const ag = ageYearsToAgeGroup(age);
   const i = ageIndex(ag);
   if (i < 0) return "";
+  const col = i * 2 + (gender === "female" ? 1 : 0);
+  const score60Rows = {
+    mdl: OFFICIAL_ROWS.mdl["60"]?.[col],
+    hrp: OFFICIAL_ROWS.hrp["60"]?.[col],
+    sdc: OFFICIAL_ROWS.sdc["60"]?.[col],
+    plk: OFFICIAL_ROWS.plk["60"]?.[col],
+    twoMR: OFFICIAL_ROWS.twoMR["60"]?.[col],
+  };
+  if (
+    score60Rows.mdl == null ||
+    score60Rows.hrp == null ||
+    score60Rows.sdc == null ||
+    score60Rows.plk == null ||
+    score60Rows.twoMR == null
+  ) {
+    return "";
+  }
 
-  const mdlMin = gender === "male" ? MDL_M_MIN60[i] : MDL_F_MIN60[i];
-  const hrpMin = gender === "male" ? HRP_M_MIN60[i] : HRP_F_MIN60[i];
-  const sdcMax = gender === "male" ? SDC_M_T60[i] : SDC_F_T60[i];
-  const plkMin = PLK_T60[i];
-  const twoMrMax = gender === "male" ? MR_M_T60[i] : MR_F_T60[i];
+  const mdlMin = score60Rows.mdl;
+  const hrpMin = score60Rows.hrp;
+  const sdcMax = score60Rows.sdc;
+  const plkMin = score60Rows.plk;
+  const twoMrMax = score60Rows.twoMR;
 
   return [
     `AFT age group: ${ag} (${gender === "male" ? "Male" : "Female"}). Minimum passing (60-point) raw standards from the official May 2025 tables:`,
