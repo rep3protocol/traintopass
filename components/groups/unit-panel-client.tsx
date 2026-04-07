@@ -440,7 +440,7 @@ export function UnitPanelClient({
               <p className="text-sm text-neutral-200">
                 This week&apos;s target:{" "}
                 <span className="text-forge-accent font-heading text-xl tabular-nums">
-                  {weeklyChallengeScore}
+                  {Math.round(weeklyChallengeScore)}
                 </span>
               </p>
               <p className="text-xs text-neutral-500">

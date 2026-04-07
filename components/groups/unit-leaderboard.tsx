@@ -129,7 +129,7 @@ export function UnitLeaderboard({ groupId, isLeader }: Props) {
                       {r.rankGrade}
                     </td>
                     <td className="py-3 pr-2 font-heading text-lg text-white tabular-nums">
-                      {r.bestTotalScore}
+                      {Math.round(r.bestTotalScore)}
                       <span className="text-[10px] text-neutral-500 font-body font-normal">
                         {" "}
                         / 500
@@ -180,7 +180,7 @@ export function UnitLeaderboard({ groupId, isLeader }: Props) {
           Unit average (all members)
         </span>
         <span className="font-heading text-2xl text-forge-accent tabular-nums">
-          {averageScore}
+          {Math.round(averageScore)}
         </span>
       </div>
 

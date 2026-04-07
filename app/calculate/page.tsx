@@ -333,7 +333,7 @@ export default function CalculatePage() {
                               : "text-red-400"
                         }
                       >
-                        {sc.toFixed(1)}
+                        {Math.round(sc)}
                       </span>
                     </div>
                     <ProgressBar score={sc} />

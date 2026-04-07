@@ -461,7 +461,7 @@ export default async function DashboardPage() {
                         {row.age_group} · {row.gender}
                       </span>
                       <span className="font-heading text-lg text-white">
-                        {row.total_score}
+                        {Math.round(row.total_score)}
                       </span>
                       <span
                         className={

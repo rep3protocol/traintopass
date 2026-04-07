@@ -122,7 +122,7 @@ export default function LeaderboardPage() {
                           </span>
                           <span className="text-neutral-300">{r.age_group}</span>
                           <span className="font-heading text-xl text-white text-right">
-                            {r.total_score}
+                            {Math.round(r.total_score)}
                           </span>
                           <span className="text-xs text-neutral-500 text-right w-24">
                             {formatDate(r.submitted_at)}

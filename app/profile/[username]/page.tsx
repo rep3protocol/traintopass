@@ -187,7 +187,7 @@ export default async function PublicProfilePage({ params }: Props) {
               Best AFT score
             </p>
             <p className="font-heading text-3xl text-white mt-1">
-              {bestScore}
+              {Math.round(bestScore)}
               <span className="text-forge-accent text-xl"> / 500</span>
             </p>
           </div>

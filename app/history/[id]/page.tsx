@@ -96,7 +96,7 @@ export default async function HistorySummaryPage({ params }: Props) {
               Total score
             </p>
             <p className="font-heading text-5xl text-white mt-1">
-              {row.total_score}
+              {Math.round(row.total_score)}
               <span className="text-forge-accent text-3xl"> / 500</span>
             </p>
           </div>
@@ -135,7 +135,7 @@ export default async function HistorySummaryPage({ params }: Props) {
                         evPass ? "text-forge-accent" : "text-red-400"
                       }`}
                     >
-                      {score}
+                      {Math.round(score)}
                     </span>
                   </div>
                 </div>

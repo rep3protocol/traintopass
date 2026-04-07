@@ -796,7 +796,7 @@ export default function ResultsPage() {
                 Total score
               </p>
               <p className="font-heading text-5xl text-white mt-1">
-                {data.totalScore}
+                {Math.round(data.totalScore)}
                 <span className="text-forge-accent text-3xl"> / 500</span>
               </p>
               <p className="mt-2 text-xs text-neutral-500 leading-relaxed max-w-md">
@@ -858,7 +858,7 @@ export default function ResultsPage() {
                           ev.passed ? "text-forge-accent" : "text-red-400"
                         }`}
                       >
-                        {ev.score}
+                        {Math.round(ev.score)}
                       </span>
                     </div>
                     <p className="text-[11px] text-neutral-600">
@@ -1040,7 +1040,7 @@ export default function ResultsPage() {
                               ev.status
                             )}`}
                           >
-                            {ev.score} pts · {ev.status}
+                            {Math.round(ev.score)} pts · {ev.status}
                           </span>
                         </div>
                         <div>
@@ -1187,7 +1187,7 @@ export default function ResultsPage() {
                       {h.ageGroup} · {h.gender}
                     </span>
                     <span className="font-heading text-lg text-white">
-                      {h.totalScore}
+                      {Math.round(h.totalScore)}
                     </span>
                     <span
                       className={
@@ -1281,7 +1281,7 @@ export default function ResultsPage() {
                 </span>
                 <div className="flex items-center gap-4 shrink-0">
                   <span className="font-heading text-4xl text-white">
-                    {ev.score}
+                    {Math.round(ev.score)}
                   </span>
                   <span
                     className={`text-sm font-bold uppercase tracking-wider border px-2 py-1 ${
