@@ -1,3 +1,5 @@
+import officialRows from "@/lib/aft-score-tables.json";
+
 export type Gender = "male" | "female";
 
 export const GENDERS: { value: Gender; label: string }[] = [
@@ -75,49 +77,39 @@ const MR_M_T60 = [1197, 1185, 1185, 1244, 1244, 1324, 1324, 1370, 1416, 1416];
 const MR_F_T100 = [960, 930, 930, 948, 951, 960, 990, 1019, 1038, 1038];
 const MR_F_T60 = [1375, 1365, 1365, 1370, 1379, 1395, 1410, 1440, 1488, 1500];
 
-function clampScore(n: number): number {
-  return Math.round(Math.min(100, Math.max(0, n)) * 10) / 10;
-}
-
 function ageIndex(ageGroup: AgeGroup): number {
   return AGE_GROUPS.indexOf(ageGroup);
 }
 
-/** Higher raw value = better (MDL lbs, HRP reps). */
-function scoreHigherBetter(value: number, min60: number, max100: number): number {
-  if (value >= max100) return 100;
-  if (value <= 0) return 0;
-  if (value < min60) {
-    return clampScore((value / min60) * 60);
-  }
-  return clampScore(
-    60 + ((value - min60) / (max100 - min60)) * 40
-  );
-}
+type OfficialRows = Record<
+  EventKey,
+  Record<string, Array<number | null>>
+>;
 
-/** Lower time (seconds) = better (SDC, 2MR). t100 < t60. */
-function scoreTimeLowerBetter(timeSec: number, t100: number, t60: number): number {
-  if (timeSec <= t100) return 100;
-  const tZero = t60 + (t60 - t100);
-  if (timeSec >= tZero) return 0;
-  if (timeSec <= t60) {
-    return clampScore(
-      100 - ((timeSec - t100) / (t60 - t100)) * 40
-    );
-  }
-  return clampScore(((tZero - timeSec) / (tZero - t60)) * 60);
-}
+const OFFICIAL_ROWS = officialRows as OfficialRows;
 
-/** Longer time (seconds) = better (PLK). t60 < t100. */
-function scoreTimeHigherBetter(timeSec: number, t60: number, t100: number): number {
-  if (timeSec >= t100) return 100;
-  if (timeSec <= 0) return 0;
-  if (timeSec < t60) {
-    return clampScore((timeSec / t60) * 60);
+function scoreFromOfficialRows(
+  event: EventKey,
+  ageGroup: AgeGroup,
+  gender: Gender,
+  value: number,
+  lowerIsBetter: boolean
+): number {
+  if (!Number.isFinite(value)) return 0;
+  const i = ageIndex(ageGroup);
+  if (i < 0) return 0;
+  const col = i * 2 + (gender === "female" ? 1 : 0);
+  const rows = OFFICIAL_ROWS[event];
+  for (let score = 100; score >= 0; score -= 1) {
+    const row = rows[String(score)];
+    if (!row) continue;
+    const threshold = row[col];
+    if (threshold == null) continue;
+    if (lowerIsBetter ? value <= threshold : value >= threshold) {
+      return score;
+    }
   }
-  return clampScore(
-    60 + ((timeSec - t60) / (t100 - t60)) * 40
-  );
+  return 0;
 }
 
 export function parseMmSsToSeconds(s: string): number | null {
@@ -149,31 +141,23 @@ export function scoreEvent(
   if (i < 0) return 0;
 
   if (event === "mdl") {
-    const max100 = gender === "male" ? MDL_M_MAX[i] : MDL_F_MAX[i];
-    const min60 = gender === "male" ? MDL_M_MIN60[i] : MDL_F_MIN60[i];
-    return scoreHigherBetter(value, min60, max100);
+    return scoreFromOfficialRows(event, ageGroup, gender, value, false);
   }
 
   if (event === "hrp") {
-    const max100 = gender === "male" ? HRP_M_MAX[i] : HRP_F_MAX[i];
-    const min60 = gender === "male" ? HRP_M_MIN60[i] : HRP_F_MIN60[i];
-    return scoreHigherBetter(value, min60, max100);
+    return scoreFromOfficialRows(event, ageGroup, gender, value, false);
   }
 
   if (event === "sdc") {
-    const t100 = gender === "male" ? SDC_M_T100[i] : SDC_F_T100[i];
-    const t60 = gender === "male" ? SDC_M_T60[i] : SDC_F_T60[i];
-    return scoreTimeLowerBetter(value, t100, t60);
+    return scoreFromOfficialRows(event, ageGroup, gender, value, true);
   }
 
   if (event === "plk") {
-    return scoreTimeHigherBetter(value, PLK_T60[i], PLK_T100[i]);
+    return scoreFromOfficialRows(event, ageGroup, gender, value, false);
   }
 
   if (event === "twoMR") {
-    const t100 = gender === "male" ? MR_M_T100[i] : MR_F_T100[i];
-    const t60 = gender === "male" ? MR_M_T60[i] : MR_F_T60[i];
-    return scoreTimeLowerBetter(value, t100, t60);
+    return scoreFromOfficialRows(event, ageGroup, gender, value, true);
   }
 
   return 0;

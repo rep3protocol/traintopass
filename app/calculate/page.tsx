@@ -46,9 +46,9 @@ const FIELD_META: Record<
 > = {
   mdl: { unit: "lbs", inputMode: "decimal" },
   hrp: { unit: "reps", inputMode: "numeric" },
-  sdc: { unit: "MM:SS", inputMode: "numeric" },
-  plk: { unit: "MM:SS", inputMode: "numeric" },
-  twoMR: { unit: "MM:SS", inputMode: "numeric" },
+  sdc: { unit: "MM:SS", inputMode: "text" },
+  plk: { unit: "MM:SS", inputMode: "text" },
+  twoMR: { unit: "MM:SS", inputMode: "text" },
 };
 
 const LOADING_MESSAGES = [
