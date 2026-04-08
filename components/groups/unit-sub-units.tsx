@@ -11,13 +11,29 @@ export type SubUnitRow = {
 type Props = {
   title: string;
   units: SubUnitRow[];
+  /** Quick action to create a child unit (company → platoon, platoon → squad). */
+  addHref?: string;
+  addLabel?: string;
 };
 
-export function UnitSubUnits({ title, units }: Props) {
+export function UnitSubUnits({ title, units, addHref, addLabel }: Props) {
+  const addButton =
+    addHref && addLabel ? (
+      <Link
+        href={addHref}
+        className="inline-flex items-center border border-forge-accent px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-forge-accent hover:bg-forge-accent hover:text-forge-bg transition-colors shrink-0"
+      >
+        {addLabel}
+      </Link>
+    ) : null;
+
   if (units.length === 0) {
     return (
       <section className="border border-forge-border bg-forge-panel p-6">
-        <h2 className="font-heading text-lg text-white tracking-wide">{title}</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="font-heading text-lg text-white tracking-wide">{title}</h2>
+          {addButton}
+        </div>
         <p className="mt-2 text-xs text-neutral-500">
           No sub-units linked yet. Create squads or platoons under this unit from
           Create unit, or invite members with join codes.
@@ -28,7 +44,10 @@ export function UnitSubUnits({ title, units }: Props) {
 
   return (
     <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
-      <h2 className="font-heading text-lg text-white tracking-wide">{title}</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="font-heading text-lg text-white tracking-wide">{title}</h2>
+        {addButton}
+      </div>
       <ul className="divide-y divide-forge-border">
         {units.map((u) => (
           <li

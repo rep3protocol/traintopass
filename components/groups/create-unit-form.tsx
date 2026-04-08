@@ -1,13 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  isUnitType,
   maxMembersForUnitType,
   unitTypeLabel,
   type UnitType,
 } from "@/lib/unit-types";
+import { isUuidParam } from "@/lib/group-route-helpers";
 
 type ParentOpt = { id: string; name: string };
 
@@ -15,17 +17,26 @@ type Props = {
   paid: boolean;
   initialPlatoonAddon: boolean;
   initialCompanyAddon: boolean;
+  initialUnitType?: UnitType;
+  initialParentId?: string;
 };
 
 export function CreateUnitForm({
   paid,
   initialPlatoonAddon,
   initialCompanyAddon,
+  initialUnitType,
+  initialParentId,
 }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const typeLocked =
+    isUnitType(searchParams.get("type")) || initialUnitType != null;
   const [name, setName] = useState("");
-  const [unitType, setUnitType] = useState<UnitType>("squad");
-  const [parentId, setParentId] = useState("");
+  const [unitType, setUnitType] = useState<UnitType>(
+    () => initialUnitType ?? "squad"
+  );
+  const [parentId, setParentId] = useState(() => initialParentId ?? "");
   const [parentOptions, setParentOptions] = useState<ParentOpt[]>([]);
   const [platoonAddon, setPlatoonAddon] = useState(initialPlatoonAddon);
   const [companyAddon, setCompanyAddon] = useState(initialCompanyAddon);
@@ -80,6 +91,20 @@ export function CreateUnitForm({
       cancelled = true;
     };
   }, [paid, unitType]);
+
+  useEffect(() => {
+    const typeParam = searchParams.get("type");
+    const parentParam = searchParams.get("parentId");
+    const t = isUnitType(typeParam) ? typeParam : undefined;
+    const p =
+      t && t !== "company" && parentParam && isUuidParam(parentParam)
+        ? parentParam
+        : "";
+    if (t) {
+      setUnitType(t);
+      setParentId(p);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -239,26 +264,32 @@ export function CreateUnitForm({
         <p className="text-[10px] uppercase tracking-widest text-neutral-500">
           Unit type
         </p>
-        <div className="flex flex-wrap gap-2">
-          {(["squad", "platoon", "company"] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => {
-                setUnitType(t);
-                setParentId("");
-                setErr(null);
-              }}
-              className={`px-4 py-2 text-[10px] font-semibold uppercase tracking-widest border transition-colors ${
-                unitType === t
-                  ? "border-forge-accent bg-forge-accent text-forge-bg"
-                  : "border-forge-border text-neutral-400 hover:border-forge-accent hover:text-forge-accent"
-              }`}
-            >
-              {unitTypeLabel(t)}
-            </button>
-          ))}
-        </div>
+        {typeLocked ? (
+          <p className="text-sm text-white border border-forge-border/60 px-3 py-2 bg-forge-bg/50">
+            {unitTypeLabel(unitType)}
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {(["squad", "platoon", "company"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  setUnitType(t);
+                  setParentId("");
+                  setErr(null);
+                }}
+                className={`px-4 py-2 text-[10px] font-semibold uppercase tracking-widest border transition-colors ${
+                  unitType === t
+                    ? "border-forge-accent bg-forge-accent text-forge-bg"
+                    : "border-forge-border text-neutral-400 hover:border-forge-accent hover:text-forge-accent"
+                }`}
+              >
+                {unitTypeLabel(t)}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="text-xs text-neutral-500 space-y-1 border border-forge-border/60 p-3">

@@ -9,7 +9,12 @@ import { UnitSubUnits, type SubUnitRow } from "@/components/groups/unit-sub-unit
 import { isUuidParam } from "@/lib/group-route-helpers";
 import { fetchChildGroups } from "@/lib/group-subtree";
 import { getGroupTreeAverageScore } from "@/lib/group-average-score";
-import { isUnitType, unitTypeLabel, type UnitType } from "@/lib/unit-types";
+import {
+  isUnitType,
+  maxMembersForUnitType,
+  unitTypeLabel,
+  type UnitType,
+} from "@/lib/unit-types";
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -75,6 +80,7 @@ export default async function GroupDetailPage({ params }: PageProps) {
   if (!row) notFound();
 
   const unitType: UnitType = isUnitType(row.unit_type) ? row.unit_type : "squad";
+  const memberLimit = maxMembersForUnitType(unitType);
   const isLeader = row.leader_id === uid;
   const joinCode = isLeader ? row.join_code : null;
   const aft =
@@ -195,6 +201,7 @@ export default async function GroupDetailPage({ params }: PageProps) {
               groupName={row.name}
               joinCode={joinCode}
               memberCount={Number(row.member_count ?? 0)}
+              memberLimit={memberLimit}
               aftTestDate={aft}
               weeklyChallengeScore={
                 row.weekly_challenge_score != null
@@ -205,7 +212,16 @@ export default async function GroupDetailPage({ params }: PageProps) {
               initialAnnouncements={announcements}
             />
             {unitType === "company" || unitType === "platoon" ? (
-              <UnitSubUnits title={subTitle} units={subUnits} />
+              <UnitSubUnits
+                title={subTitle}
+                units={subUnits}
+                addHref={
+                  unitType === "company"
+                    ? `/groups/create?type=platoon&parentId=${encodeURIComponent(groupId)}`
+                    : `/groups/create?type=squad&parentId=${encodeURIComponent(groupId)}`
+                }
+                addLabel={unitType === "company" ? "Add Platoon" : "Add Squad"}
+              />
             ) : null}
           </div>
           <UnitLeaderboard

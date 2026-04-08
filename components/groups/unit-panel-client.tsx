@@ -15,6 +15,8 @@ type Props = {
   groupName: string;
   joinCode: string | null;
   memberCount: number;
+  /** Max members for this unit type (squad 15, platoon 60, company 250). */
+  memberLimit: number;
   aftTestDate: string | null;
   weeklyChallengeScore: number | null;
   challengeHits: number;
@@ -100,6 +102,7 @@ export function UnitPanelClient({
   groupName,
   joinCode,
   memberCount,
+  memberLimit,
   aftTestDate: initialAft,
   weeklyChallengeScore: initialChallenge,
   challengeHits: initialHits,
@@ -342,7 +345,7 @@ export function UnitPanelClient({
           {groupName}
         </h1>
         <p className="text-xs text-neutral-500 uppercase tracking-widest">
-          Members {memberCount} / 20
+          Members {memberCount} / {memberLimit}
         </p>
 
         {isLeader && joinCode ? (
