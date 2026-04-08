@@ -69,7 +69,21 @@ Events scoring below 75 (priority for improvement): ${
 
 The soldier can train ${payload.trainingDays} days per week. Structure the 4-week plan around this availability. Distribute work across the available training days so no single day is overloaded.
 
-Tailor the plan appropriately for this soldier's gender and age group. Write a practical 4-week training plan. Emphasize the weakest events above while keeping the other events maintained. Include volume, intensity notes, and rest guidance. Use plain text with EXACT section headings so parsing works:
+Tailor the plan appropriately for this soldier's gender and age group. Write a practical 4-week training plan. Emphasize the weakest events above while keeping the other events maintained. Include volume, intensity notes, and rest guidance.
+
+Use these training rules when generating the plan:
+- Progressive overload across the 4-week cycle:
+  - Week 1: 70-75% intensity baseline
+  - Week 2: 80-85% intensity build
+  - Week 3: 85-90% intensity peak
+  - Week 4: deload at ~70% intensity before repeating or advancing
+- Manage CNS fatigue: never schedule heavy compound lifts (including deadlift and heavy carries) on back-to-back days. High CNS demand work must have 48-72 hours before repeating.
+- Session focus: each training day should prioritize 1-2 weak AFT events. Accessory work for other events is allowed, but keep it low intensity when primary work is heavy.
+- Volume control: limit high-intensity work to 3-5 working sets per primary movement. Reserve max-out sets for testing days only, not normal training sessions.
+- Recovery integration: explicitly include 1-2 rest or active recovery days per week. Active recovery can include light rucking, mobility, or Zone 2 cardio, not additional heavy training.
+- Plans should be hard but smart: optimize for peak AFT test-day performance, not training exhaustion. Manage fatigue so the soldier can be fresh and strong when it counts.
+
+Use plain text with EXACT section headings so parsing works:
 
 ## Week 1
 (week 1 content)
