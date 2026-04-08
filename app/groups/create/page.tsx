@@ -33,6 +33,10 @@ export default async function CreateUnitPage() {
             add-on after Pro. Members only need a free account to join with your
             code.
           </p>
+          <p className="mt-4 text-xs text-neutral-400 border border-forge-border/60 bg-forge-panel px-4 py-3 max-w-lg leading-relaxed">
+            Recommended order: Create a Company first, then Platoons, then
+            Squads.
+          </p>
         </div>
         <CreateUnitForm
           paid={paid}

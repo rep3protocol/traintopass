@@ -35,6 +35,12 @@ export function CreateUnitForm({
 
   const maxMembers = useMemo(() => maxMembersForUnitType(unitType), [unitType]);
 
+  const namePlaceholder = useMemo(() => {
+    if (unitType === "squad") return "e.g. 1st Squad, 3rd Platoon";
+    if (unitType === "platoon") return "e.g. 1st Platoon, Bravo Company";
+    return "e.g. Bravo Company, 1-87 Infantry";
+  }, [unitType]);
+
   useEffect(() => {
     if (!paid) return;
     let cancelled = false;
@@ -59,6 +65,7 @@ export function CreateUnitForm({
       setParentId("");
       return;
     }
+    setParentOptions([]);
     let cancelled = false;
     void fetch(`/api/groups/parent-options?for=${encodeURIComponent(forParam)}`)
       .then((r) => r.json() as Promise<{ options?: ParentOpt[] }>)
@@ -128,6 +135,22 @@ export function CreateUnitForm({
   const submit = async () => {
     const n = name.trim();
     if (!n || busy || !paid) return;
+    if (
+      unitType === "platoon" &&
+      parentOptions.length > 0 &&
+      !parentId.trim()
+    ) {
+      setErr("Select a parent company.");
+      return;
+    }
+    if (
+      unitType === "squad" &&
+      parentOptions.length > 0 &&
+      !parentId.trim()
+    ) {
+      setErr("Select a parent platoon.");
+      return;
+    }
     setBusy(true);
     setErr(null);
 
@@ -267,44 +290,76 @@ export function CreateUnitForm({
           onChange={(e) => setName(e.target.value)}
           maxLength={120}
           className="bg-forge-bg border border-forge-border px-3 py-2 text-sm text-white"
-          placeholder="e.g. 1st Platoon"
+          placeholder={namePlaceholder}
         />
       </label>
 
+      {unitType === "company" ? (
+        <p className="text-xs text-neutral-400 leading-relaxed border border-forge-border/60 p-3">
+          Companies are top level. Create platoons and squads after.
+        </p>
+      ) : null}
+
       {unitType === "platoon" ? (
-        <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-neutral-500">
-          Join existing company (optional)
-          <select
-            value={parentId}
-            onChange={(e) => setParentId(e.target.value)}
-            className="bg-forge-bg border border-forge-border px-3 py-2 text-sm text-white"
-          >
-            <option value="">— None —</option>
-            {parentOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="space-y-2">
+          <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-neutral-500">
+            Select Parent Company
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              required={parentOptions.length > 0}
+              className="bg-forge-bg border border-forge-border px-3 py-2 text-sm text-white"
+            >
+              {parentOptions.length > 0 ? (
+                <option value="">Select a company…</option>
+              ) : (
+                <option value="">— None —</option>
+              )}
+              {parentOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {parentOptions.length === 0 ? (
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              No companies found. You can create a standalone platoon or create a
+              company first.
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {unitType === "squad" ? (
-        <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-neutral-500">
-          Join existing platoon (optional)
-          <select
-            value={parentId}
-            onChange={(e) => setParentId(e.target.value)}
-            className="bg-forge-bg border border-forge-border px-3 py-2 text-sm text-white"
-          >
-            <option value="">— None —</option>
-            {parentOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="space-y-2">
+          <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-neutral-500">
+            Select Parent Platoon
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              required={parentOptions.length > 0}
+              className="bg-forge-bg border border-forge-border px-3 py-2 text-sm text-white"
+            >
+              {parentOptions.length > 0 ? (
+                <option value="">Select a platoon…</option>
+              ) : (
+                <option value="">— None —</option>
+              )}
+              {parentOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {parentOptions.length === 0 ? (
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              No platoons found. You can create a standalone squad or create a
+              platoon first.
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {err ? <p className="text-xs text-red-400">{err}</p> : null}
@@ -312,7 +367,16 @@ export function CreateUnitForm({
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          disabled={busy || !name.trim()}
+          disabled={
+            busy ||
+            !name.trim() ||
+            (unitType === "platoon" &&
+              parentOptions.length > 0 &&
+              !parentId.trim()) ||
+            (unitType === "squad" &&
+              parentOptions.length > 0 &&
+              !parentId.trim())
+          }
           onClick={() => void submit()}
           className="border-2 border-forge-accent bg-forge-accent px-6 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent transition-colors disabled:opacity-50"
         >
