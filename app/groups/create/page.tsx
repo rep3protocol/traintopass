@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { SiteFooter } from "@/components/site-footer";
@@ -35,6 +36,12 @@ export default async function CreateUnitPage({ searchParams }: PageProps) {
 
   const typeRaw = firstSearchParam(searchParams.type);
   const parentRaw = firstSearchParam(searchParams.parentId);
+  const parentIdInUrl = Boolean(parentRaw?.trim());
+  const backHref =
+    parentIdInUrl && parentRaw && isUuidParam(parentRaw)
+      ? `/groups/${parentRaw}`
+      : "/groups";
+  const backLabel = parentIdInUrl ? "← Back to Unit" : "← Back to Units";
   const initialUnitType = isUnitType(typeRaw) ? typeRaw : undefined;
   const initialParentId =
     initialUnitType &&
@@ -48,6 +55,12 @@ export default async function CreateUnitPage({ searchParams }: PageProps) {
     <div className="min-h-screen flex flex-col">
       <SiteHeader />
       <main className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto w-full space-y-8">
+        <Link
+          href={backHref}
+          className="inline-flex items-center border border-forge-border px-6 py-2.5 text-[10px] font-semibold tracking-widest text-neutral-400 hover:border-forge-accent hover:text-forge-accent transition-colors"
+        >
+          {backLabel}
+        </Link>
         <div>
           <h1 className="font-heading text-4xl sm:text-5xl text-white tracking-wide">
             CREATE UNIT
