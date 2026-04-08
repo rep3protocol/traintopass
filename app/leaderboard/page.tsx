@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { AGE_GROUPS, type AgeGroup } from "@/lib/aft-scoring";
+import { unitTypeLabel, type UnitType } from "@/lib/unit-types";
 
 type Row = {
   id: number;
@@ -12,6 +13,12 @@ type Row = {
   gender: string;
   total_score: number;
   submitted_at: string;
+};
+
+type UnitRow = {
+  id: string;
+  name: string;
+  averageScore: number;
 };
 
 function formatDate(iso: string): string {
@@ -27,12 +34,17 @@ function formatDate(iso: string): string {
   }
 }
 
+type Tab = "public" | UnitType;
+
 export default function LeaderboardPage() {
   const [gender, setGender] = useState<"male" | "female">("male");
+  const [tab, setTab] = useState<Tab>("public");
   const [groups, setGroups] = useState<Record<string, Row[]>>({});
+  const [unitRows, setUnitRows] = useState<UnitRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (tab !== "public") return;
     let cancelled = false;
     setLoading(true);
     void fetch(`/api/leaderboard?gender=${gender}`)
@@ -49,7 +61,27 @@ export default function LeaderboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [gender]);
+  }, [gender, tab]);
+
+  useEffect(() => {
+    if (tab === "public") return;
+    let cancelled = false;
+    setLoading(true);
+    void fetch(`/api/leaderboard/units?level=${encodeURIComponent(tab)}`)
+      .then((r) => r.json() as Promise<{ rows?: UnitRow[] }>)
+      .then((data) => {
+        if (!cancelled && data.rows) setUnitRows(data.rows);
+      })
+      .catch(() => {
+        if (!cancelled) setUnitRows([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -67,37 +99,68 @@ export default function LeaderboardPage() {
           </Link>
         </div>
         <p className="mt-2 text-sm text-neutral-500">
-          Top 10 scores per age group (anonymous submissions).
+          {tab === "public"
+            ? "Top 10 scores per age group (anonymous submissions)."
+            : `Train to Pass units — ${unitTypeLabel(tab)} average scores.`}
         </p>
 
-        <div className="mt-8 flex gap-0 border border-forge-border w-fit">
-          <button
-            type="button"
-            onClick={() => setGender("male")}
-            className={`px-6 py-2 text-xs font-semibold uppercase tracking-widest transition-colors ${
-              gender === "male"
-                ? "bg-forge-accent text-forge-bg"
-                : "bg-forge-panel text-neutral-400 hover:text-white"
-            }`}
-          >
-            Male
-          </button>
-          <button
-            type="button"
-            onClick={() => setGender("female")}
-            className={`px-6 py-2 text-xs font-semibold uppercase tracking-widest border-l border-forge-border transition-colors ${
-              gender === "female"
-                ? "bg-forge-accent text-forge-bg"
-                : "bg-forge-panel text-neutral-400 hover:text-white"
-            }`}
-          >
-            Female
-          </button>
+        <div className="mt-6 flex flex-wrap gap-0 border border-forge-border w-fit">
+          {(
+            [
+              ["public", "Public"] as const,
+              ["squad", "Squad"] as const,
+              ["platoon", "Platoon"] as const,
+              ["company", "Company"] as const,
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                setTab(id);
+                setLoading(true);
+              }}
+              className={`px-4 sm:px-6 py-2 text-xs font-semibold uppercase tracking-widest transition-colors border-l border-forge-border first:border-l-0 ${
+                tab === id
+                  ? "bg-forge-accent text-forge-bg"
+                  : "bg-forge-panel text-neutral-400 hover:text-white"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+
+        {tab === "public" ? (
+          <div className="mt-8 flex gap-0 border border-forge-border w-fit">
+            <button
+              type="button"
+              onClick={() => setGender("male")}
+              className={`px-6 py-2 text-xs font-semibold uppercase tracking-widest transition-colors ${
+                gender === "male"
+                  ? "bg-forge-accent text-forge-bg"
+                  : "bg-forge-panel text-neutral-400 hover:text-white"
+              }`}
+            >
+              Male
+            </button>
+            <button
+              type="button"
+              onClick={() => setGender("female")}
+              className={`px-6 py-2 text-xs font-semibold uppercase tracking-widest border-l border-forge-border transition-colors ${
+                gender === "female"
+                  ? "bg-forge-accent text-forge-bg"
+                  : "bg-forge-panel text-neutral-400 hover:text-white"
+              }`}
+            >
+              Female
+            </button>
+          </div>
+        ) : null}
 
         {loading ? (
           <p className="mt-10 text-sm text-neutral-500">Loading…</p>
-        ) : (
+        ) : tab === "public" ? (
           <div className="mt-10 space-y-10">
             {(AGE_GROUPS as AgeGroup[]).map((ag) => {
               const rows = groups[ag] ?? [];
@@ -134,6 +197,31 @@ export default function LeaderboardPage() {
                 </section>
               );
             })}
+          </div>
+        ) : (
+          <div className="mt-10 border border-forge-border bg-forge-panel">
+            {unitRows.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-neutral-600">
+                No units yet at this level.
+              </p>
+            ) : (
+              <ul className="divide-y divide-forge-border">
+                {unitRows.map((r, i) => (
+                  <li
+                    key={r.id}
+                    className="grid grid-cols-[auto_1fr_auto] gap-3 items-center px-4 py-3 text-sm"
+                  >
+                    <span className="font-heading text-lg text-neutral-500 w-8">
+                      {i + 1}
+                    </span>
+                    <span className="text-neutral-200">{r.name}</span>
+                    <span className="font-heading text-xl text-white text-right tabular-nums">
+                      {Math.round(r.averageScore)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </main>

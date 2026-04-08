@@ -52,7 +52,13 @@ export async function GET(
     }
 
     const membersRaw = await sql`
-      SELECT
+      WITH RECURSIVE subtree AS (
+        SELECT id FROM "groups" WHERE id = ${groupId}::uuid
+        UNION ALL
+        SELECT g.id FROM "groups" g
+        INNER JOIN subtree s ON g.parent_group_id = s.id
+      )
+      SELECT DISTINCT ON (gm.user_id)
         gm.user_id::text AS user_id,
         u.name AS user_name,
         u.email AS user_email,
@@ -60,7 +66,8 @@ export async function GET(
         u.stripe_customer_id
       FROM group_members gm
       INNER JOIN users u ON u.id = gm.user_id
-      WHERE gm.group_id = ${groupId}::uuid
+      WHERE gm.group_id IN (SELECT id FROM subtree)
+      ORDER BY gm.user_id
     `;
 
     const members = membersRaw as {
@@ -93,7 +100,13 @@ export async function GET(
     }
 
     const ranked = await sql`
-      WITH ranked AS (
+      WITH RECURSIVE subtree AS (
+        SELECT id FROM "groups" WHERE id = ${groupId}::uuid
+        UNION ALL
+        SELECT g.id FROM "groups" g
+        INNER JOIN subtree s ON g.parent_group_id = s.id
+      ),
+      ranked AS (
         SELECT
           sh.user_id,
           sh.total_score,
@@ -107,7 +120,7 @@ export async function GET(
           ) AS rn
         FROM score_history sh
         INNER JOIN group_members gm
-          ON gm.user_id = sh.user_id AND gm.group_id = ${groupId}::uuid
+          ON gm.user_id = sh.user_id AND gm.group_id IN (SELECT id FROM subtree)
       )
       SELECT
         r.user_id::text,
@@ -151,13 +164,19 @@ export async function GET(
     }
 
     const historyRows = await sql`
+      WITH RECURSIVE subtree AS (
+        SELECT id FROM "groups" WHERE id = ${groupId}::uuid
+        UNION ALL
+        SELECT g.id FROM "groups" g
+        INNER JOIN subtree s ON g.parent_group_id = s.id
+      )
       SELECT
         sh.user_id::text AS user_id,
         sh.total_score,
         (sh.created_at::date)::text AS day
       FROM score_history sh
       INNER JOIN group_members gm
-        ON gm.user_id = sh.user_id AND gm.group_id = ${groupId}::uuid
+        ON gm.user_id = sh.user_id AND gm.group_id IN (SELECT id FROM subtree)
       ORDER BY sh.created_at ASC
     `;
 

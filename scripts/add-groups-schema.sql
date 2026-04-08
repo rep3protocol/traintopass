@@ -6,11 +6,22 @@ CREATE TABLE IF NOT EXISTS "groups" (
   name TEXT NOT NULL,
   join_code TEXT UNIQUE NOT NULL,
   leader_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  unit_type TEXT NOT NULL DEFAULT 'squad',
+  parent_group_id UUID REFERENCES "groups"(id) ON DELETE SET NULL,
+  creation_checkout_session_id TEXT,
   aft_test_date DATE,
   weekly_challenge_score INTEGER,
   weekly_challenge_set_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT groups_unit_type_check CHECK (unit_type IN ('squad', 'platoon', 'company'))
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS groups_creation_checkout_session_id_unique
+  ON "groups"(creation_checkout_session_id)
+  WHERE creation_checkout_session_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS groups_parent_group_id ON "groups"(parent_group_id);
+CREATE INDEX IF NOT EXISTS groups_unit_type ON "groups"(unit_type);
 
 CREATE TABLE IF NOT EXISTS group_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -1,0 +1,117 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
+
+export default function PricingPage() {
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const startProCheckout = async () => {
+    setErr(null);
+    setCheckoutLoading(true);
+    try {
+      const res = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnPath: "/pricing" }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setErr(data.error ?? "Checkout unavailable");
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setErr("Checkout unavailable");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <SiteHeader />
+      <main className="flex-1 px-4 sm:px-8 py-10 max-w-3xl mx-auto w-full space-y-10">
+        <div>
+          <h1 className="font-heading text-4xl sm:text-5xl text-white tracking-wide">
+            PRICING
+          </h1>
+          <p className="mt-3 text-sm text-neutral-400 leading-relaxed">
+            Individual Pro unlocks plans and tools. Unit add-ons apply when you
+            create larger formations. Anyone joining a unit with your code only
+            needs a free account.
+          </p>
+        </div>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-3">
+          <h2 className="font-heading text-xl text-forge-accent tracking-wide">
+            Individual Pro — $7/mo
+          </h2>
+          <p className="text-sm text-neutral-400 leading-relaxed">
+            Full training plans, AFT analysis, and the ability to create any unit
+            type (squad, platoon, or company). Same Pro features as today —
+            nothing removed.
+          </p>
+          <button
+            type="button"
+            onClick={() => void startProCheckout()}
+            disabled={checkoutLoading}
+            className="mt-2 border-2 border-forge-accent bg-forge-accent px-6 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent transition-colors disabled:opacity-50"
+          >
+            {checkoutLoading ? "Loading…" : "Unlock Pro — $7/mo"}
+          </button>
+          {err ? <p className="text-xs text-red-400 pt-2">{err}</p> : null}
+        </section>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+          <h2 className="font-heading text-xl text-white tracking-wide">
+            Unit tiers
+          </h2>
+          <ul className="space-y-6 text-sm text-neutral-400 leading-relaxed">
+            <li>
+              <span className="text-forge-accent font-heading text-lg">
+                Squad
+              </span>
+              <span className="text-neutral-500"> — </span>
+              Included with Pro ($7/mo). Up to 15 members. Create from{" "}
+              <Link href="/groups/create" className="text-forge-accent hover:underline">
+                Create unit
+              </Link>
+              .
+            </li>
+            <li>
+              <span className="text-forge-accent font-heading text-lg">
+                Platoon
+              </span>
+              <span className="text-neutral-500"> — </span>
+              +$15/mo add-on on top of Pro. Up to 60 members. You&apos;ll be
+              prompted for Stripe when you select Platoon and create the unit.
+            </li>
+            <li>
+              <span className="text-forge-accent font-heading text-lg">
+                Company
+              </span>
+              <span className="text-neutral-500"> — </span>
+              +$30/mo add-on on top of Pro. Up to 250 members. Checkout runs when
+              you select Company and create the unit.
+            </li>
+          </ul>
+          <p className="text-xs text-neutral-500 border-t border-forge-border pt-4">
+            Members who join your squad, platoon, or company with a join code do
+            not need Pro — a free account is enough.
+          </p>
+          <Link
+            href="/groups/create"
+            className="inline-block border border-forge-border px-6 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
+          >
+            Create a unit
+          </Link>
+        </section>
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}

@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { generateJoinCode } from "@/lib/groups";
-import { checkAndAwardPatches } from "@/lib/award-patches";
-import { getUserSubscriptionPaid } from "@/lib/user-subscription";
 import { neon } from "@neondatabase/serverless";
+import { getUserSubscriptionPaid, getUserStripeCustomerId } from "@/lib/user-subscription";
+import {
+  insertGroupWithLeader,
+} from "@/lib/group-create-shared";
+import {
+  isUnitType,
+  type UnitType,
+} from "@/lib/unit-types";
+import {
+  userHasPlatoonAddon,
+  userHasCompanyAddon,
+} from "@/lib/stripe-unit-addons";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +27,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Subscription required" }, { status: 403 });
   }
 
-  let body: { name?: string };
+  let body: {
+    name?: string;
+    unitType?: string;
+    parentGroupId?: string | null;
+  };
   try {
     body = await req.json();
   } catch {
@@ -29,55 +42,74 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid name" }, { status: 400 });
   }
 
+  const unitType: UnitType = isUnitType(body.unitType)
+    ? body.unitType
+    : "squad";
+
+  let parentGroupId: string | null =
+    typeof body.parentGroupId === "string" && body.parentGroupId.trim() !== ""
+      ? body.parentGroupId.trim()
+      : null;
+
+  if (unitType === "company") {
+    parentGroupId = null;
+  }
+
   const url = process.env.DATABASE_URL?.trim();
   if (!url) {
     return NextResponse.json({ error: "Unavailable" }, { status: 503 });
   }
 
-  const sql = neon(url);
-  const leaderId = session.user.id;
+  const stripeCustomerId = await getUserStripeCustomerId(session.user.id);
 
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const joinCode = generateJoinCode();
-    let groupId: string | null = null;
-    try {
-      const inserted = await sql`
-        INSERT INTO "groups" (name, join_code, leader_id)
-        VALUES (${name}, ${joinCode}, ${leaderId}::uuid)
-        RETURNING id::text, name, join_code
-      `;
-      const row = (inserted as { id: string; name: string; join_code: string }[])[0];
-      if (!row?.id) continue;
-      groupId = row.id;
-      await sql`
-        INSERT INTO group_members (group_id, user_id)
-        VALUES (${groupId}::uuid, ${leaderId}::uuid)
-      `;
-      try {
-        await checkAndAwardPatches(leaderId, { isGroupLeader: true });
-      } catch {
-        /* silent */
-      }
-      return NextResponse.json({
-        group: {
-          id: row.id,
-          name: row.name,
-          joinCode: row.join_code,
+  if (unitType === "platoon") {
+    const ok = await userHasPlatoonAddon(stripeCustomerId);
+    if (!ok) {
+      return NextResponse.json(
+        {
+          error: "Platoon add-on required",
+          needsAddonCheckout: true,
+          addon: "platoon",
         },
-      });
-    } catch (e: unknown) {
-      if (groupId) {
-        try {
-          await sql`DELETE FROM "groups" WHERE id = ${groupId}::uuid`;
-        } catch {
-          /* silent */
-        }
-      }
-      const code = (e as { code?: string })?.code;
-      if (code === "23505") continue;
-      return NextResponse.json({ error: "Unable to create unit" }, { status: 503 });
+        { status: 402 }
+      );
     }
   }
 
-  return NextResponse.json({ error: "Unable to create unit" }, { status: 503 });
+  if (unitType === "company") {
+    const ok = await userHasCompanyAddon(stripeCustomerId);
+    if (!ok) {
+      return NextResponse.json(
+        {
+          error: "Company add-on required",
+          needsAddonCheckout: true,
+          addon: "company",
+        },
+        { status: 402 }
+      );
+    }
+  }
+
+  const sql = neon(url);
+  const leaderId = session.user.id;
+
+  const result = await insertGroupWithLeader(sql, {
+    name,
+    leaderId,
+    unitType,
+    parentGroupId,
+    creationCheckoutSessionId: null,
+  });
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    group: {
+      id: result.id,
+      name: result.name,
+      joinCode: result.join_code,
+    },
+  });
 }

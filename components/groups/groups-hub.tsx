@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { unitTypeLabel, type UnitType } from "@/lib/unit-types";
 
 export type GroupCard = {
   id: string;
@@ -10,6 +11,10 @@ export type GroupCard = {
   joinCode: string | null;
   memberCount: number;
   isLeader: boolean;
+  unitType: UnitType;
+  parentName: string | null;
+  descendantPlatoons?: number;
+  descendantSquads?: number;
 };
 
 type Props = {
@@ -20,9 +25,7 @@ type Props = {
 export function GroupsHub({ initialGroups, paid }: Props) {
   const router = useRouter();
   const [groups, setGroups] = useState(initialGroups);
-  const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
-  const [createName, setCreateName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -37,6 +40,8 @@ export function GroupsHub({ initialGroups, paid }: Props) {
           joinCode: string | null;
           memberCount: number;
           isLeader: boolean;
+          unitType?: string;
+          parentName?: string | null;
         }[];
       };
       if (res.ok && data.groups) {
@@ -47,6 +52,13 @@ export function GroupsHub({ initialGroups, paid }: Props) {
             joinCode: g.joinCode,
             memberCount: g.memberCount,
             isLeader: g.isLeader,
+            unitType:
+              g.unitType === "platoon" || g.unitType === "company"
+                ? g.unitType
+                : g.unitType === "squad"
+                  ? "squad"
+                  : "squad",
+            parentName: g.parentName ?? null,
           }))
         );
       }
@@ -54,35 +66,6 @@ export function GroupsHub({ initialGroups, paid }: Props) {
       /* silent */
     }
     router.refresh();
-  };
-
-  const createUnit = async () => {
-    const name = createName.trim();
-    if (!name || busy) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      const res = await fetch("/api/groups/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = (await res.json()) as { error?: string; group?: { id: string } };
-      if (!res.ok) {
-        setErr(data.error ?? "Unable to create");
-        return;
-      }
-      if (data.group?.id) {
-        setCreateName("");
-        setCreateOpen(false);
-        await refreshList();
-        router.push(`/groups/${data.group.id}`);
-      }
-    } catch {
-      setErr("Unable to create");
-    } finally {
-      setBusy(false);
-    }
   };
 
   const joinUnit = async () => {
@@ -121,23 +104,17 @@ export function GroupsHub({ initialGroups, paid }: Props) {
     <div className="space-y-10">
       <div className="flex flex-wrap gap-3">
         {paid ? (
-          <button
-            type="button"
-            onClick={() => {
-              setCreateOpen((o) => !o);
-              setJoinOpen(false);
-              setErr(null);
-            }}
-            className="border-2 border-forge-accent bg-forge-accent px-6 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent transition-colors"
+          <Link
+            href="/groups/create"
+            className="inline-block border-2 border-forge-accent bg-forge-accent px-6 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent transition-colors text-center"
           >
             Create unit
-          </button>
+          </Link>
         ) : null}
         <button
           type="button"
           onClick={() => {
             setJoinOpen((o) => !o);
-            setCreateOpen(false);
             setErr(null);
           }}
           className="border border-forge-border px-6 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
@@ -145,35 +122,6 @@ export function GroupsHub({ initialGroups, paid }: Props) {
           Join unit
         </button>
       </div>
-
-      {createOpen && paid ? (
-        <div className="border border-forge-border bg-forge-panel p-6 space-y-4 max-w-md">
-          <h2 className="font-heading text-lg text-white tracking-wide">
-            NEW UNIT
-          </h2>
-          <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-neutral-500">
-            Unit name
-            <input
-              value={createName}
-              onChange={(e) => setCreateName(e.target.value)}
-              maxLength={120}
-              className="bg-forge-bg border border-forge-border px-3 py-2 text-sm text-white"
-              placeholder="e.g. 1st Platoon"
-            />
-          </label>
-          {err ? (
-            <p className="text-xs text-red-400">{err}</p>
-          ) : null}
-          <button
-            type="button"
-            disabled={busy || !createName.trim()}
-            onClick={() => void createUnit()}
-            className="border border-forge-accent px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-forge-accent hover:bg-forge-accent hover:text-forge-bg transition-colors disabled:opacity-50"
-          >
-            Create
-          </button>
-        </div>
-      ) : null}
 
       {joinOpen ? (
         <div className="border border-forge-border bg-forge-panel p-6 space-y-4 max-w-md">
@@ -220,9 +168,30 @@ export function GroupsHub({ initialGroups, paid }: Props) {
               className="border border-forge-border bg-forge-panel p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
             >
               <div className="space-y-2">
-                <h2 className="font-heading text-2xl text-white tracking-wide">
-                  {g.name}
-                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-heading text-2xl text-white tracking-wide">
+                    {g.name}
+                  </h2>
+                  <span className="text-[10px] font-semibold uppercase tracking-widest border border-forge-border text-neutral-400 px-2 py-0.5">
+                    {unitTypeLabel(g.unitType)}
+                  </span>
+                </div>
+                {g.parentName ? (
+                  <p className="text-xs text-neutral-500">
+                    Under:{" "}
+                    <span className="text-neutral-300">{g.parentName}</span>
+                  </p>
+                ) : null}
+                {g.unitType === "company" &&
+                (g.descendantPlatoons !== undefined ||
+                  g.descendantSquads !== undefined) ? (
+                  <p className="text-xs text-neutral-500">
+                    Organization: {g.descendantPlatoons ?? 0} platoon
+                    {(g.descendantPlatoons ?? 0) === 1 ? "" : "s"},{" "}
+                    {g.descendantSquads ?? 0} squad
+                    {(g.descendantSquads ?? 0) === 1 ? "" : "s"} underneath
+                  </p>
+                ) : null}
                 <p className="text-xs text-neutral-500 uppercase tracking-widest">
                   {g.memberCount} members
                 </p>

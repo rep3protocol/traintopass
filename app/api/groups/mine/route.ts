@@ -25,6 +25,9 @@ export async function GET() {
         g.name,
         g.join_code,
         g.leader_id::text,
+        g.unit_type::text AS unit_type,
+        g.parent_group_id::text AS parent_group_id,
+        pg.name AS parent_name,
         g.aft_test_date,
         g.weekly_challenge_score,
         g.weekly_challenge_set_at,
@@ -34,6 +37,7 @@ export async function GET() {
       FROM group_members me
       INNER JOIN "groups" g ON g.id = me.group_id
       INNER JOIN users u ON u.id = g.leader_id
+      LEFT JOIN "groups" pg ON pg.id = g.parent_group_id
       WHERE me.user_id = ${uid}::uuid
       ORDER BY g.created_at ASC
     `;
@@ -43,6 +47,9 @@ export async function GET() {
       name: string;
       join_code: string;
       leader_id: string;
+      unit_type: string | null;
+      parent_group_id: string | null;
+      parent_name: string | null;
       aft_test_date: string | null;
       weekly_challenge_score: number | null;
       weekly_challenge_set_at: string | null;
@@ -59,6 +66,9 @@ export async function GET() {
       leaderName: r.leader_name?.trim() || r.leader_email?.split("@")[0] || "Leader",
       isLeader: r.leader_id === uid,
       memberCount: Number(r.member_count ?? 0),
+      unitType: r.unit_type ?? "squad",
+      parentGroupId: r.parent_group_id,
+      parentName: r.parent_name,
       aftTestDate: r.aft_test_date
         ? typeof r.aft_test_date === "string"
           ? r.aft_test_date.slice(0, 10)

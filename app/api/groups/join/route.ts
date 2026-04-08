@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { checkAndAwardPatches } from "@/lib/award-patches";
 import { normalizeJoinCode } from "@/lib/groups";
+import { maxMembersForUnitType, isUnitType, type UnitType } from "@/lib/unit-types";
 import { neon } from "@neondatabase/serverless";
 
 export const dynamic = "force-dynamic";
-
-const MAX_MEMBERS = 20;
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -35,12 +34,15 @@ export async function POST(req: Request) {
 
   try {
     const found = await sql`
-      SELECT id::text, name FROM "groups" WHERE join_code = ${code}
+      SELECT id::text, name, unit_type::text AS unit_type FROM "groups" WHERE join_code = ${code}
     `;
-    const g = (found as { id: string; name: string }[])[0];
+    const g = (found as { id: string; name: string; unit_type: string }[])[0];
     if (!g?.id) {
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
+
+    const unitType: UnitType = isUnitType(g.unit_type) ? g.unit_type : "squad";
+    const maxMembers = maxMembersForUnitType(unitType);
 
     const existing = await sql`
       SELECT 1 FROM group_members
@@ -59,7 +61,7 @@ export async function POST(req: Request) {
       SELECT COUNT(*)::int AS c FROM group_members WHERE group_id = ${g.id}::uuid
     `;
     const n = Number((countRows as { c: number }[])[0]?.c ?? 0);
-    if (n >= MAX_MEMBERS) {
+    if (n >= maxMembers) {
       return NextResponse.json({ error: "Unit is full" }, { status: 400 });
     }
 

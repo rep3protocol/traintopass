@@ -27,9 +27,14 @@ export type LeaderboardRow = {
 type Props = {
   groupId: string;
   isLeader: boolean;
+  heading?: string;
 };
 
-export function UnitLeaderboard({ groupId, isLeader }: Props) {
+export function UnitLeaderboard({
+  groupId,
+  isLeader,
+  heading = "UNIT LEADERBOARD",
+}: Props) {
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [averageScore, setAverageScore] = useState(0);
   const [chart, setChart] = useState<{ date: string; avg: number }[]>([]);
@@ -76,7 +81,7 @@ export function UnitLeaderboard({ groupId, isLeader }: Props) {
     return (
       <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
         <h2 className="font-heading text-xl text-white tracking-wide">
-          UNIT LEADERBOARD
+          {heading}
         </h2>
         <p className="text-xs text-neutral-500">Loading…</p>
       </section>
@@ -86,7 +91,7 @@ export function UnitLeaderboard({ groupId, isLeader }: Props) {
   return (
     <section className="border border-forge-border bg-forge-panel p-6 space-y-6">
       <h2 className="font-heading text-xl text-white tracking-wide">
-        UNIT LEADERBOARD
+        {heading}
       </h2>
 
       <div className="overflow-x-auto">
