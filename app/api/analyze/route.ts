@@ -14,6 +14,7 @@ import {
 import type {
   AnalyzeRequestBody,
   AnalyzeResponseBody,
+  MosStandard,
   TrainingDaysPerWeek,
 } from "@/lib/analyze-types";
 import { extractPlanTextAndDeepDives } from "@/lib/extract-event-deep-dives";
@@ -33,6 +34,10 @@ function isTimedEvent(key: EventKey): boolean {
   return key === "sdc" || key === "plk" || key === "twoMR";
 }
 
+function isMosStandard(s: string): s is MosStandard {
+  return s === "general" || s === "combat";
+}
+
 function rawForPrompt(key: EventKey, raw: number): string {
   if (isTimedEvent(key)) {
     return `${formatSecondsAsMmSs(raw)} (${raw}s)`;
@@ -47,9 +52,14 @@ function buildPrompt(payload: {
   weakEvents: string[];
   trainingDays: TrainingDaysPerWeek;
   eventNamesForJson: string[];
+  mosStandard: MosStandard;
 }): string {
   const genderLabel = payload.gender === "male" ? "Male" : "Female";
   const namesList = payload.eventNamesForJson.map((n) => `- ${n}`).join("\n");
+  const combatLine =
+    payload.mosStandard === "combat"
+      ? "\nThis soldier is in a combat MOS and must meet the 350-point sex-neutral total-score standard.\n"
+      : "";
   return `You are a U.S. Army AFT (Army Fitness Test)-focused strength and conditioning coach.
 
 The AFT has five events: 3 Repetition Maximum Deadlift (MDL), Hand-Release Push-Up (HRP), Sprint-Drag-Carry (SDC), Plank (PLK), and Two-Mile Run (2MR).
@@ -58,6 +68,7 @@ Soldier profile:
 - Gender: ${genderLabel}
 - Age group: ${payload.ageGroup}
 - AFT event scores (0–100 scale per event, 60 minimum pass per event, 100 max per event, 500 total possible across all five events):
+${combatLine}
 
 ${payload.lines.join("\n")}
 
@@ -124,6 +135,9 @@ export async function POST(req: Request) {
   }
 
   const { ageGroup, gender, scores } = body;
+  const rawMosStandard = body.mosStandard;
+  const mosStandard: MosStandard =
+    rawMosStandard && isMosStandard(rawMosStandard) ? rawMosStandard : "general";
 
   let trainingDays: TrainingDaysPerWeek = 4;
   const td = body.trainingDays;
@@ -167,7 +181,9 @@ export async function POST(req: Request) {
 
   const totalScore =
     Math.round(events.reduce((s, e) => s + e.score, 0) * 10) / 10;
-  const overallPassed = events.every((e) => e.passed);
+  const totalPassingThreshold = mosStandard === "combat" ? 350 : 300;
+  const overallPassed =
+    events.every((e) => e.passed) && totalScore >= totalPassingThreshold;
 
   const lines = events.map(
     (e) =>
@@ -196,6 +212,7 @@ export async function POST(req: Request) {
     weakEvents,
     trainingDays,
     eventNamesForJson,
+    mosStandard,
   });
 
   let rawModelText: string;
@@ -222,6 +239,7 @@ export async function POST(req: Request) {
   const payload: AnalyzeResponseBody = {
     ageGroup,
     gender,
+    mosStandard,
     events,
     totalScore,
     overallPassed,

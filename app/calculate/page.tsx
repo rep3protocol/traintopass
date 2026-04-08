@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type InputHTMLAttributes } from "react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import type { AnalyzeResponseBody } from "@/lib/analyze-types";
+import type { AnalyzeResponseBody, MosStandard } from "@/lib/analyze-types";
 import {
   SESSION_TRAINING_DAYS_KEY,
   STORAGE_NEW_RUN_FLAG,
@@ -28,11 +28,13 @@ const TIMED_EVENTS = new Set<EventKey>(["sdc", "plk", "twoMR"]);
 type FormState = Record<EventKey, string> & {
   ageGroup: AgeGroup;
   gender: Gender;
+  mosStandard: MosStandard;
 };
 
 const initialForm = (): FormState => ({
   ageGroup: "17-21",
   gender: "male",
+  mosStandard: "general",
   mdl: "",
   hrp: "",
   sdc: "",
@@ -182,6 +184,7 @@ export default function CalculatePage() {
         body: JSON.stringify({
           ageGroup: form.ageGroup,
           gender: form.gender,
+          mosStandard: form.mosStandard,
           scores,
         }),
       });
@@ -294,6 +297,25 @@ export default function CalculatePage() {
                       {g.label}
                     </option>
                   ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold uppercase tracking-widest text-forge-accent">
+                  MOS Standard
+                </label>
+                <select
+                  value={form.mosStandard}
+                  onChange={(e) =>
+                    setField("mosStandard", e.target.value as MosStandard)
+                  }
+                  className="mt-3 w-full border border-forge-border bg-forge-bg px-3 py-3 text-white outline-none focus:border-forge-accent"
+                >
+                  <option value="general">
+                    General - 300 point minimum total, sex and age normed
+                  </option>
+                  <option value="combat">
+                    Combat MOS - 350 point minimum total, sex-neutral standard
+                  </option>
                 </select>
               </div>
             </div>

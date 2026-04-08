@@ -580,6 +580,7 @@ export default function ResultsPage() {
         body: JSON.stringify({
           ageGroup: data.ageGroup,
           gender: data.gender,
+          mosStandard: data.mosStandard ?? "general",
           scores: scoresRecordFromResult(data),
           trainingDays: days,
         }),
@@ -696,6 +697,16 @@ export default function ResultsPage() {
     unlocked && planGateDone && !paidPlanReady;
   const showPlanEmailGate = unlocked && !planGateDone;
   const paidDeepDives = data ? deepDivesForPaidUi(data) : [];
+  const mosStandard = data.mosStandard ?? "general";
+  const totalPassingThreshold = mosStandard === "combat" ? 350 : 300;
+  const meetsEventMinimums = data.events.every((e) => e.passed);
+  const overallPassed =
+    meetsEventMinimums && data.totalScore >= totalPassingThreshold;
+  const combatGeneralOnlyPass =
+    mosStandard === "combat" &&
+    meetsEventMinimums &&
+    data.totalScore >= 300 &&
+    data.totalScore < 350;
 
   return (
     <div className="min-h-screen flex flex-col pb-8 relative">
@@ -803,15 +814,25 @@ export default function ResultsPage() {
                 Five events, up to 100 points each. You need at least 60 points on
                 every event to pass the AFT overall.
               </p>
+              <p className="mt-2 text-xs text-neutral-500 leading-relaxed max-w-md">
+                {mosStandard === "combat"
+                  ? "Combat MOS Standard (350)"
+                  : "General Standard (300)"}
+              </p>
+              {combatGeneralOnlyPass ? (
+                <p className="mt-2 text-xs text-red-400 leading-relaxed max-w-md">
+                  Meets General standard but not Combat standard
+                </p>
+              ) : null}
             </div>
             <div
               className={`text-sm font-semibold uppercase tracking-widest border px-4 py-2 ${
-                data.overallPassed
+                overallPassed
                   ? "border-forge-accent text-forge-accent"
                   : "border-red-500 text-red-400"
               }`}
             >
-              {data.overallPassed ? "Overall pass" : "Overall fail"}
+              {overallPassed ? "Overall pass" : "Overall fail"}
             </div>
           </div>
 
@@ -1258,7 +1279,7 @@ export default function ResultsPage() {
         <div className="mt-10 flex-1 flex flex-col items-center justify-center">
           <p
             className={`font-heading text-[140px] leading-none ${
-              data.overallPassed ? "text-[#4ade80]" : "text-red-500"
+              overallPassed ? "text-[#4ade80]" : "text-red-500"
             }`}
           >
             {Math.round(data.totalScore)}

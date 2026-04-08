@@ -1,6 +1,7 @@
 import type { AgeGroup, EventKey, EventStatus, Gender } from "./aft-scoring";
 
 export type TrainingDaysPerWeek = 3 | 4 | 5 | 6;
+export type MosStandard = "general" | "combat";
 
 export type EventDeepDive = {
   event: string;
@@ -22,6 +23,8 @@ export type AnalyzeResponseBody = {
   /** Present on new analyses; omitted on older cached results. */
   ageGroup?: AgeGroup;
   gender?: Gender;
+  /** Standard used to determine total-score pass threshold; defaults to general if missing. */
+  mosStandard?: MosStandard;
   events: PerEventResult[];
   totalScore: number;
   overallPassed: boolean;
@@ -39,6 +42,8 @@ export type AnalyzeResponseBody = {
 export type AnalyzeRequestBody = {
   ageGroup: AgeGroup;
   gender: Gender;
+  /** Optional MOS standard; defaults to general when omitted. */
+  mosStandard?: MosStandard;
   scores: Record<EventKey, number>;
   /** Days per week the soldier can train; defaults to 4 if omitted or invalid. */
   trainingDays?: TrainingDaysPerWeek;
