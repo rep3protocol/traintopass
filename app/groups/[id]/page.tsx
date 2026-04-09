@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { neon } from "@neondatabase/serverless";
 import { auth } from "@/auth";
@@ -184,6 +185,14 @@ export default async function GroupDetailPage({ params }: PageProps) {
                   ? "Up to 60 members"
                   : "Up to 250 members"}
             </span>
+            {isLeader && unitType === "company" ? (
+              <Link
+                href={`/groups/${encodeURIComponent(groupId)}/readiness`}
+                className="text-[10px] font-semibold uppercase tracking-widest border border-forge-border text-neutral-300 hover:text-forge-accent hover:border-forge-accent/60 px-2 py-0.5 transition-colors"
+              >
+                Readiness Dashboard
+              </Link>
+            ) : null}
           </div>
           {row.parent_name ? (
             <p className="text-sm text-neutral-400">
