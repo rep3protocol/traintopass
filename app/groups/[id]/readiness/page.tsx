@@ -9,6 +9,7 @@ import {
   AFT_COMBAT_PASS,
   AFT_GENERAL_PASS,
   loadCompanyReadiness,
+  type AtRiskRosterRow,
   type ReadinessRiskRow,
 } from "@/lib/company-readiness";
 import { isUuidParam } from "@/lib/group-route-helpers";
@@ -44,6 +45,12 @@ function riskDescription(kind: ReadinessRiskRow["kind"]): string {
   return kind === "combat_at_risk"
     ? "Passing general standard; below combat MOS threshold."
     : "Within 30 points of the 300-point general minimum.";
+}
+
+function atRiskLevelClass(kind: AtRiskRosterRow["kind"]): string {
+  if (kind === "failed_last_test") return "text-red-400";
+  if (kind === "declining_performance") return "text-orange-400";
+  return "text-amber-400";
 }
 
 type PageProps = { params: { id: string } };
@@ -271,6 +278,82 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
                 </ul>
               )}
             </div>
+          </div>
+        </section>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-6">
+          <div className="space-y-1">
+            <h2 className="font-heading text-xl text-white tracking-wide">
+              Automated AFT Risk Detection
+            </h2>
+            <p className="text-xs text-neutral-500 max-w-2xl">
+              Flags from each member&apos;s latest recorded test (and test
+              recency). Highest-severity flag is shown when several apply.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <h3 className="text-[10px] uppercase tracking-widest text-neutral-400">
+              At-risk roster
+            </h3>
+            {data.atRiskRoster.length === 0 ? (
+              <p className="text-sm text-neutral-400">
+                No soldiers currently flagged. Unit is on track.
+              </p>
+            ) : (
+              <div className="overflow-x-auto -mx-2 px-2">
+                <table className="w-full text-left text-sm border-collapse min-w-[960px]">
+                  <thead>
+                    <tr className="border-b border-forge-border text-[10px] uppercase tracking-widest text-neutral-500">
+                      <th className="py-2 pr-2 font-normal">Name</th>
+                      <th className="py-2 pr-2 font-normal">
+                        Military rank
+                      </th>
+                      <th className="py-2 pr-2 font-normal">Risk level</th>
+                      <th className="py-2 pr-2 font-normal">Risk reason</th>
+                      <th className="py-2 pr-2 font-normal">
+                        Current score / required
+                      </th>
+                      <th className="py-2 pr-2 font-normal">Weak events</th>
+                      <th className="py-2 font-normal">Suggested action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.atRiskRoster.map((r) => (
+                      <tr
+                        key={r.userId}
+                        className="border-b border-forge-border/80 align-top"
+                      >
+                        <td className="py-3 pr-2 text-neutral-200 whitespace-nowrap">
+                          {r.name}
+                        </td>
+                        <td className="py-3 pr-2 text-neutral-400 whitespace-nowrap">
+                          {r.militaryRankDisplay}
+                        </td>
+                        <td
+                          className={`py-3 pr-2 font-medium whitespace-nowrap ${atRiskLevelClass(r.kind)}`}
+                        >
+                          {r.riskLevel}
+                        </td>
+                        <td className="py-3 pr-2 text-xs text-neutral-300 max-w-[200px]">
+                          {r.riskReason}
+                        </td>
+                        <td className="py-3 pr-2 font-heading tabular-nums text-white whitespace-nowrap">
+                          {r.currentScoreRequiredDisplay}
+                        </td>
+                        <td className="py-3 pr-2 text-xs text-neutral-500 leading-snug max-w-[180px]">
+                          {r.weakEvents.length > 0
+                            ? r.weakEvents.join(" · ")
+                            : "—"}
+                        </td>
+                        <td className="py-3 text-xs text-neutral-500 leading-snug max-w-xs">
+                          {r.suggestedAction}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </section>
 

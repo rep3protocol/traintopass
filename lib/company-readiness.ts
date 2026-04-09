@@ -32,6 +32,27 @@ export type ReadinessRiskRow = {
 
 export type EventAvgRow = { key: EventKey; label: string; avg: number };
 
+/** Highest severity first when sorting the at-risk roster. */
+export type AutomatedAftRiskKind =
+  | "failed_last_test"
+  | "declining_performance"
+  | "borderline_at_risk"
+  | "inactive_no_recent_test";
+
+export type AtRiskRosterRow = {
+  userId: string;
+  name: string;
+  militaryRankDisplay: string;
+  /** Display tier for color coding: failed = high (red), declining = moderate (orange), borderline/inactive = watch (yellow). */
+  riskLevel: "High" | "Moderate" | "Watch";
+  riskReason: string;
+  suggestedAction: string;
+  /** e.g. "285 / 300" or "—" when no scores. */
+  currentScoreRequiredDisplay: string;
+  weakEvents: string[];
+  kind: AutomatedAftRiskKind;
+};
+
 export type CompanyReadinessData = {
   groupName: string;
   members: ReadinessMemberRow[];
@@ -46,6 +67,7 @@ export type CompanyReadinessData = {
   stale365: { id: string; name: string }[];
   stale180: { id: string; name: string }[];
   riskRows: ReadinessRiskRow[];
+  atRiskRoster: AtRiskRosterRow[];
 };
 
 const SHORT_EVENT: Record<EventKey, string> = {
@@ -76,6 +98,68 @@ function daysBetween(from: Date, to: Date): number {
   return Math.floor((b - a) / 86400000);
 }
 
+/** Minimum total on the soldier’s most recent test (general vs combat MOS bar). */
+function passTotalRequired(isCombatMos: boolean): number {
+  return isCombatMos ? AFT_COMBAT_PASS : AFT_GENERAL_PASS;
+}
+
+const AUTOMATED_RISK_SEVERITY: Record<AutomatedAftRiskKind, number> = {
+  failed_last_test: 0,
+  declining_performance: 1,
+  borderline_at_risk: 2,
+  inactive_no_recent_test: 3,
+};
+
+const AUTOMATED_RISK_COPY: Record<
+  AutomatedAftRiskKind,
+  { riskReason: string; suggestedAction: string; riskLevel: AtRiskRosterRow["riskLevel"] }
+> = {
+  failed_last_test: {
+    riskReason: "FAILED LAST TEST",
+    suggestedAction:
+      "Schedule retest and assign focused PT plan targeting weak events",
+    riskLevel: "High",
+  },
+  declining_performance: {
+    riskReason: "DECLINING PERFORMANCE",
+    suggestedAction:
+      "Review training plan. Check for injury or profile status.",
+    riskLevel: "Moderate",
+  },
+  borderline_at_risk: {
+    riskReason: "BORDERLINE — AT RISK",
+    suggestedAction:
+      "Assign extra PT for weak events. Monitor closely.",
+    riskLevel: "Watch",
+  },
+  inactive_no_recent_test: {
+    riskReason: "INACTIVE — NO RECENT TEST",
+    suggestedAction: "Follow up with soldier. No test data on record.",
+    riskLevel: "Watch",
+  },
+};
+
+function scoreRequiredForKind(
+  kind: AutomatedAftRiskKind,
+  latestTotal: number | null,
+  isCombatMos: boolean
+): number {
+  if (kind === "borderline_at_risk" && latestTotal != null) {
+    if (latestTotal >= 270 && latestTotal <= 299) return AFT_GENERAL_PASS;
+    if (latestTotal >= 300 && latestTotal <= 349) return AFT_COMBAT_PASS;
+  }
+  if (kind === "inactive_no_recent_test") return AFT_GENERAL_PASS;
+  return passTotalRequired(isCombatMos);
+}
+
+function formatCurrentRequiredDisplay(
+  latestTotal: number | null,
+  required: number
+): string {
+  if (latestTotal == null) return "—";
+  return `${Math.round(latestTotal)} / ${required}`;
+}
+
 export async function loadCompanyReadiness(
   dbUrl: string,
   groupId: string
@@ -101,7 +185,8 @@ export async function loadCompanyReadiness(
       u.name AS user_name,
       u.email AS user_email,
       u.military_rank,
-      COALESCE(ep.component, 'Active Duty') AS component
+      COALESCE(ep.component, 'Active Duty') AS component,
+      COALESCE(NULLIF(TRIM(ep.aft_mos_standard), ''), 'general') AS aft_mos_standard
     FROM group_members gm
     INNER JOIN users u ON u.id = gm.user_id
     LEFT JOIN enlistment_profiles ep ON ep.user_id = gm.user_id
@@ -115,9 +200,19 @@ export async function loadCompanyReadiness(
     user_email: string | null;
     military_rank: string | null;
     component: string;
+    aft_mos_standard: string;
   };
 
   const mrows = membersRaw as MRow[];
+  const combatMosByUser = new Map<string, boolean>();
+  for (const m of mrows) {
+    combatMosByUser.set(
+      m.user_id,
+      String(m.aft_mos_standard ?? "general").trim().toLowerCase() ===
+        "combat"
+    );
+  }
+
   if (mrows.length === 0) {
     return {
       groupName,
@@ -137,6 +232,7 @@ export async function loadCompanyReadiness(
       stale365: [],
       stale180: [],
       riskRows: [],
+      atRiskRoster: [],
     };
   }
 
@@ -219,6 +315,62 @@ export async function loadCompanyReadiness(
         ? row.last_at
         : new Date(String(row.last_at));
     if (!Number.isNaN(d.getTime())) lastByUser.set(row.user_id, d);
+  }
+
+  const recentTwoRaw = await sql`
+    WITH RECURSIVE subtree AS (
+      SELECT id FROM "groups" WHERE id = ${groupId}::uuid
+      UNION ALL
+      SELECT g.id FROM "groups" g
+      INNER JOIN subtree s ON g.parent_group_id = s.id
+    ),
+    m AS (
+      SELECT DISTINCT gm.user_id
+      FROM group_members gm
+      WHERE gm.group_id IN (SELECT id FROM subtree)
+    ),
+    ranked AS (
+      SELECT
+        sh.user_id::text AS user_id,
+        sh.total_score,
+        sh.event_scores,
+        sh.created_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY sh.user_id
+          ORDER BY sh.created_at DESC
+        ) AS rn
+      FROM score_history sh
+      INNER JOIN m ON m.user_id = sh.user_id
+    )
+    SELECT user_id, total_score, event_scores, created_at, rn
+    FROM ranked
+    WHERE rn <= 2
+  `;
+
+  type ScoreSnap = {
+    total_score: number;
+    event_scores: Record<string, unknown>;
+    created_at: string | Date;
+  };
+  const latestRecent = new Map<string, ScoreSnap>();
+  const prevRecent = new Map<string, ScoreSnap>();
+  for (const r of recentTwoRaw as {
+    user_id: string;
+    total_score: number;
+    event_scores: Record<string, unknown>;
+    created_at: string | Date;
+    rn: number;
+  }[]) {
+    const snap: ScoreSnap = {
+      total_score: Number(r.total_score ?? 0),
+      event_scores:
+        r.event_scores && typeof r.event_scores === "object"
+          ? r.event_scores
+          : {},
+      created_at: r.created_at,
+    };
+    if (r.rn === 1) latestRecent.set(r.user_id, snap);
+    else if (r.rn === 2) prevRecent.set(r.user_id, snap);
   }
 
   const now = new Date();
@@ -341,6 +493,86 @@ export async function loadCompanyReadiness(
     }
   }
 
+  const atRiskBuilt: (AtRiskRosterRow & { __sort: number })[] = [];
+  for (const row of members) {
+    const isCombatMos = combatMosByUser.get(row.userId) ?? false;
+    const latest = latestRecent.get(row.userId) ?? null;
+    const prev = prevRecent.get(row.userId) ?? null;
+    const lastTestAt = lastByUser.get(row.userId) ?? null;
+
+    const msStale = row.isNgOrReserve ? ms365 : ms180;
+    const inactive =
+      !lastTestAt ||
+      Number.isNaN(lastTestAt.getTime()) ||
+      now.getTime() - lastTestAt.getTime() > msStale;
+
+    const latestTotal = latest ? latest.total_score : null;
+    const reqPass = passTotalRequired(isCombatMos);
+    const failedLast =
+      latestTotal != null && latestTotal < reqPass;
+
+    const declining =
+      latest != null &&
+      prev != null &&
+      latest.total_score <= prev.total_score - 10;
+
+    let borderline = false;
+    if (latestTotal != null) {
+      if (
+        (latestTotal >= 270 && latestTotal <= 299) ||
+        (latestTotal >= 300 && latestTotal <= 349)
+      ) {
+        borderline = true;
+      }
+    }
+
+    const kinds: AutomatedAftRiskKind[] = [];
+    if (failedLast) kinds.push("failed_last_test");
+    if (declining) kinds.push("declining_performance");
+    if (borderline) kinds.push("borderline_at_risk");
+    if (inactive) kinds.push("inactive_no_recent_test");
+
+    if (kinds.length === 0) continue;
+
+    kinds.sort(
+      (a, b) => AUTOMATED_RISK_SEVERITY[a] - AUTOMATED_RISK_SEVERITY[b]
+    );
+    const kind = kinds[0]!;
+    const copy = AUTOMATED_RISK_COPY[kind];
+    const required = scoreRequiredForKind(kind, latestTotal, isCombatMos);
+    const weak = latest
+      ? weakEventLabelsBelow(latest.event_scores, 75)
+      : [];
+
+    atRiskBuilt.push({
+      userId: row.userId,
+      name: row.name,
+      militaryRankDisplay: row.militaryRankDisplay,
+      riskLevel: copy.riskLevel,
+      riskReason: copy.riskReason,
+      suggestedAction: copy.suggestedAction,
+      currentScoreRequiredDisplay: formatCurrentRequiredDisplay(
+        latestTotal,
+        required
+      ),
+      weakEvents: weak,
+      kind,
+      __sort: latestTotal ?? Number.POSITIVE_INFINITY,
+    });
+  }
+
+  atRiskBuilt.sort((a, b) => {
+    const d = AUTOMATED_RISK_SEVERITY[a.kind] - AUTOMATED_RISK_SEVERITY[b.kind];
+    if (d !== 0) return d;
+    return a.__sort - b.__sort;
+  });
+  const atRiskRoster: AtRiskRosterRow[] = [];
+  for (const b of atRiskBuilt) {
+    const { __sort, ...rest } = b;
+    void __sort;
+    atRiskRoster.push(rest);
+  }
+
   stale365.sort((a, b) => a.name.localeCompare(b.name));
   stale180.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -358,5 +590,6 @@ export async function loadCompanyReadiness(
     stale365,
     stale180,
     riskRows,
+    atRiskRoster,
   };
 }
