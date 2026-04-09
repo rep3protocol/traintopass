@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { ADMIN_BROADCAST_USER_EMAIL } from "@/lib/admin-broadcast-email";
 
 export function SiteHeader() {
   const { data: session, status } = useSession();
@@ -72,6 +73,15 @@ export function SiteHeader() {
             >
               Dashboard
             </Link>
+            {session.user.email?.trim().toLowerCase() ===
+            ADMIN_BROADCAST_USER_EMAIL ? (
+              <Link
+                href="/admin/broadcast"
+                className="text-sm text-neutral-500 hover:text-forge-accent uppercase tracking-widest"
+              >
+                Broadcast
+              </Link>
+            ) : null}
             <Link
               href="/account"
               className="text-sm text-neutral-400 hover:text-forge-accent max-w-[160px] truncate"

@@ -14,8 +14,7 @@ export function BroadcastClient({ recipientCount }: { recipientCount: number }) 
 
   const previewHtml = buildBroadcastEmailHtml(PREVIEW_FIRST_NAME, message);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function postBroadcast(testOnly: boolean) {
     setSuccess(null);
     setError(null);
     setBusy(true);
@@ -23,7 +22,11 @@ export function BroadcastClient({ recipientCount }: { recipientCount: number }) 
       const res = await fetch("/api/admin/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: subject.trim(), message }),
+        body: JSON.stringify({
+          subject: subject.trim(),
+          message,
+          ...(testOnly ? { testOnly: true } : {}),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -44,6 +47,10 @@ export function BroadcastClient({ recipientCount }: { recipientCount: number }) 
       }
       const sent = typeof data.sent === "number" ? data.sent : 0;
       const failed = typeof data.failed === "number" ? data.failed : 0;
+      if (testOnly && sent > 0 && failed === 0) {
+        setSuccess("Test email sent to your inbox");
+        return;
+      }
       if (sent > 0) {
         setSuccess(`${sent} emails sent successfully`);
       }
@@ -61,6 +68,15 @@ export function BroadcastClient({ recipientCount }: { recipientCount: number }) 
     } finally {
       setBusy(false);
     }
+  }
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    void postBroadcast(false);
+  }
+
+  function onSendTest() {
+    void postBroadcast(true);
   }
 
   return (
@@ -130,13 +146,25 @@ export function BroadcastClient({ recipientCount }: { recipientCount: number }) 
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={busy || recipientCount === 0}
-        className="w-full border-2 border-forge-accent bg-forge-accent px-6 py-3 text-xs font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent disabled:opacity-50 transition-colors"
-      >
-        {busy ? "Sending…" : "Send to All Users"}
-      </button>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          type="button"
+          onClick={onSendTest}
+          disabled={
+            busy || !subject.trim() || !message.trim()
+          }
+          className="flex-1 border-2 border-forge-border bg-forge-bg px-6 py-3 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent disabled:opacity-50 transition-colors"
+        >
+          {busy ? "Sending…" : "Send Test Email"}
+        </button>
+        <button
+          type="submit"
+          disabled={busy || recipientCount === 0}
+          className="flex-1 border-2 border-forge-accent bg-forge-accent px-6 py-3 text-xs font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent disabled:opacity-50 transition-colors"
+        >
+          {busy ? "Sending…" : "Send to All Users"}
+        </button>
+      </div>
     </form>
   );
 }

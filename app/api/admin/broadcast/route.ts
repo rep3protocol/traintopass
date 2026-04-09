@@ -28,9 +28,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: { subject?: string; message?: string };
+  let body: { subject?: string; message?: string; testOnly?: boolean };
   try {
-    body = (await req.json()) as { subject?: string; message?: string };
+    body = (await req.json()) as {
+      subject?: string;
+      message?: string;
+      testOnly?: boolean;
+    };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -46,17 +50,42 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Message is required" }, { status: 400 });
   }
 
-  const url = process.env.DATABASE_URL?.trim();
+  const testOnly = body.testOnly === true;
   const resendKey = process.env.RESEND_API_KEY?.trim();
-  if (!url) {
-    return NextResponse.json(
-      { error: "Database not configured" },
-      { status: 500 }
-    );
-  }
   if (!resendKey) {
     return NextResponse.json(
       { error: "RESEND_API_KEY is not configured" },
+      { status: 500 }
+    );
+  }
+
+  if (testOnly) {
+    const resend = new Resend(resendKey);
+    const from = "Train to Pass <noreply@traintopass.com>";
+    const to = ADMIN_BROADCAST_USER_EMAIL;
+    const first = broadcastRecipientFirstName(session.user.name, to);
+    const html = buildBroadcastEmailHtml(first, message);
+    try {
+      const out = await resend.emails.send({
+        from,
+        to,
+        subject,
+        html,
+        replyTo: "hello@traintopass.com",
+      });
+      if (out.error) {
+        return NextResponse.json({ sent: 0, failed: 1 });
+      }
+      return NextResponse.json({ sent: 1, failed: 0 });
+    } catch {
+      return NextResponse.json({ sent: 0, failed: 1 });
+    }
+  }
+
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) {
+    return NextResponse.json(
+      { error: "Database not configured" },
       { status: 500 }
     );
   }
