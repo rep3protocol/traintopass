@@ -8,8 +8,7 @@ import {
 } from "@/lib/groups";
 import { isUuidParam } from "@/lib/group-route-helpers";
 import { EVENT_ORDER, type EventKey } from "@/lib/aft-scoring";
-import { effectiveRank, parseRankId, rankDisplayGrade, type RankId } from "@/lib/ranks";
-import { hasActiveStripeSubscription } from "@/lib/stripe-subscription";
+import { formatMilitaryRankDisplay } from "@/lib/military-rank";
 import { neon } from "@neondatabase/serverless";
 
 export const dynamic = "force-dynamic";
@@ -62,8 +61,7 @@ export async function GET(
         gm.user_id::text AS user_id,
         u.name AS user_name,
         u.email AS user_email,
-        u.current_rank,
-        u.stripe_customer_id
+        u.military_rank
       FROM group_members gm
       INNER JOIN users u ON u.id = gm.user_id
       WHERE gm.group_id IN (SELECT id FROM subtree)
@@ -74,30 +72,8 @@ export async function GET(
       user_id: string;
       user_name: string | null;
       user_email: string | null;
-      current_rank: string | null;
-      stripe_customer_id: string | null;
+      military_rank: string | null;
     }[];
-
-    const customerIds = Array.from(
-      new Set(
-        members
-          .map((m) => m.stripe_customer_id?.trim())
-          .filter((x): x is string => !!x)
-      )
-    );
-    const customerPaid = new Map<string, boolean>();
-    await Promise.all(
-      customerIds.map(async (cid) => {
-        const ok = await hasActiveStripeSubscription(cid);
-        customerPaid.set(cid, ok);
-      })
-    );
-
-    const paidByUserId = new Map<string, boolean>();
-    for (const m of members) {
-      const cid = m.stripe_customer_id?.trim();
-      paidByUserId.set(m.user_id, cid ? !!customerPaid.get(cid) : false);
-    }
 
     const ranked = await sql`
       WITH RECURSIVE subtree AS (
@@ -185,8 +161,7 @@ export async function GET(
     type RowOut = {
       userId: string;
       name: string;
-      rank: RankId;
-      rankGrade: string;
+      militaryRankDisplay: string;
       bestTotalScore: number;
       ageGroup: string;
       gender: string;
@@ -197,9 +172,6 @@ export async function GET(
 
     const rows: RowOut[] = members.map((m) => {
       const best = bestByUser.get(m.user_id);
-      const paid = paidByUserId.get(m.user_id) ?? false;
-      const rawRank = parseRankId(m.current_rank);
-      const rank = effectiveRank(rawRank, paid);
       const displayName =
         m.user_name?.trim() || m.user_email?.split("@")[0] || "Athlete";
       const evScores = {} as Record<EventKey, number>;
@@ -218,8 +190,7 @@ export async function GET(
       return {
         userId: m.user_id,
         name: displayName,
-        rank,
-        rankGrade: rankDisplayGrade(rank),
+        militaryRankDisplay: formatMilitaryRankDisplay(m.military_rank),
         bestTotalScore: bestTotal,
         ageGroup: best?.age_group ?? "—",
         gender: best?.gender ?? "—",

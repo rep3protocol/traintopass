@@ -1,13 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { EVENT_ORDER, type EventKey } from "@/lib/aft-scoring";
 import { weakEventLabelsBelow } from "@/lib/groups";
-import {
-  effectiveRank,
-  parseRankId,
-  rankDisplayGrade,
-  type RankId,
-} from "@/lib/ranks";
-import { hasActiveStripeSubscription } from "@/lib/stripe-subscription";
+import { formatMilitaryRankDisplay } from "@/lib/military-rank";
 
 export const AFT_GENERAL_PASS = 300;
 export const AFT_COMBAT_PASS = 350;
@@ -15,8 +9,7 @@ export const AFT_COMBAT_PASS = 350;
 export type ReadinessMemberRow = {
   userId: string;
   name: string;
-  rankGrade: string;
-  rank: RankId;
+  militaryRankDisplay: string;
   component: string;
   isNgOrReserve: boolean;
   bestTotal: number;
@@ -107,8 +100,7 @@ export async function loadCompanyReadiness(
       gm.user_id::text AS user_id,
       u.name AS user_name,
       u.email AS user_email,
-      u.current_rank,
-      u.stripe_customer_id,
+      u.military_rank,
       COALESCE(ep.component, 'Active Duty') AS component
     FROM group_members gm
     INNER JOIN users u ON u.id = gm.user_id
@@ -121,8 +113,7 @@ export async function loadCompanyReadiness(
     user_id: string;
     user_name: string | null;
     user_email: string | null;
-    current_rank: string | null;
-    stripe_customer_id: string | null;
+    military_rank: string | null;
     component: string;
   };
 
@@ -147,27 +138,6 @@ export async function loadCompanyReadiness(
       stale180: [],
       riskRows: [],
     };
-  }
-
-  const customerIds = Array.from(
-    new Set(
-      mrows
-        .map((m) => m.stripe_customer_id?.trim())
-        .filter((x): x is string => !!x)
-    )
-  );
-  const customerPaid = new Map<string, boolean>();
-  await Promise.all(
-    customerIds.map(async (cid) => {
-      const ok = await hasActiveStripeSubscription(cid);
-      customerPaid.set(cid, ok);
-    })
-  );
-
-  const paidByUserId = new Map<string, boolean>();
-  for (const m of mrows) {
-    const cid = m.stripe_customer_id?.trim();
-    paidByUserId.set(m.user_id, cid ? !!customerPaid.get(cid) : false);
   }
 
   const ranked = await sql`
@@ -271,10 +241,6 @@ export async function loadCompanyReadiness(
       m.user_name?.trim() || m.user_email?.split("@")[0] || "Athlete";
     const component = normComponent(m.component);
     const ng = isNgOrReserveComponent(component);
-    const paid = paidByUserId.get(m.user_id) ?? false;
-    const rawRank = parseRankId(m.current_rank);
-    const rank = effectiveRank(rawRank, paid);
-
     const best = bestByUser.get(m.user_id);
     const bestTotal = best?.total_score ?? 0;
     const eventScores = {} as Record<EventKey, number>;
@@ -322,8 +288,7 @@ export async function loadCompanyReadiness(
     members.push({
       userId: m.user_id,
       name: displayName,
-      rankGrade: rankDisplayGrade(rank),
-      rank,
+      militaryRankDisplay: formatMilitaryRankDisplay(m.military_rank),
       component,
       isNgOrReserve: ng,
       bestTotal,

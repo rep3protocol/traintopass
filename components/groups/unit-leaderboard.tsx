@@ -7,15 +7,12 @@ function formatDate(dateStr: string): string {
   if (Number.isNaN(d.getTime())) return "";
   return d.toISOString().slice(0, 10);
 }
-import { RankBadge } from "@/components/rank-badge";
-import type { RankBadgeVariant } from "@/lib/ranks";
 import { GroupAverageChart } from "@/components/groups/group-average-chart";
 
 export type LeaderboardRow = {
   userId: string;
   name: string;
-  rank: RankBadgeVariant;
-  rankGrade: string;
+  militaryRankDisplay: string;
   bestTotalScore: number;
   ageGroup: string;
   gender: string;
@@ -99,9 +96,8 @@ export function UnitLeaderboard({
           <thead>
             <tr className="border-b border-forge-border text-[10px] uppercase tracking-widest text-neutral-500">
               <th className="py-2 pr-2 font-normal">#</th>
-              <th className="py-2 pr-2 font-normal w-12" />
               <th className="py-2 pr-2 font-normal">Name</th>
-              <th className="py-2 pr-2 font-normal">E-grade</th>
+              <th className="py-2 pr-2 font-normal">Rank</th>
               <th className="py-2 pr-2 font-normal">Best</th>
               <th className="py-2 pr-2 font-normal">Pass</th>
               <th className="py-2 font-normal">Date</th>
@@ -111,7 +107,7 @@ export function UnitLeaderboard({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={6}
                   className="py-4 text-xs text-neutral-500"
                 >
                   No scores yet. Complete an assessment to appear here.
@@ -126,12 +122,9 @@ export function UnitLeaderboard({
                     <td className="py-3 pr-2 text-neutral-400 tabular-nums">
                       {i + 1}
                     </td>
-                    <td className="py-2 pr-2">
-                      <RankBadge rank={r.rank} size="small" />
-                    </td>
                     <td className="py-3 pr-2 text-neutral-200">{r.name}</td>
-                    <td className="py-3 pr-2 text-neutral-400">
-                      {r.rankGrade}
+                    <td className="py-3 pr-2 text-neutral-400 whitespace-nowrap">
+                      {r.militaryRankDisplay}
                     </td>
                     <td className="py-3 pr-2 font-heading text-lg text-white tabular-nums">
                       {Math.round(r.bestTotalScore)}
@@ -166,7 +159,7 @@ export function UnitLeaderboard({
                       key={`${r.userId}-weak`}
                       className="border-b border-forge-border/80"
                     >
-                      <td colSpan={7} className="pb-3 pt-0 pl-14 pr-2">
+                      <td colSpan={6} className="pb-3 pt-0 pl-10 pr-2">
                         <p className="text-[11px] text-neutral-600 leading-snug">
                           Weak events (below 75): {r.weakEvents.join(" · ")}
                         </p>

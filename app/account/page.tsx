@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { AccountActions } from "@/components/account-actions";
 import { AccountNotificationSettings } from "@/components/account-notification-settings";
 import { AccountReferralSection } from "@/components/account-referral-section";
+import { MilitaryRankSettings } from "@/components/military-rank-settings";
 import { ProfilePublicToggle } from "@/components/profile-public-toggle";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -21,6 +22,7 @@ export default async function AccountPage() {
   const stripeCustomerId = await getUserStripeCustomerId(session.user.id);
 
   let profilePublic = true;
+  let militaryRank: string | null = null;
   let referralCode: string | null = null;
   let totalReferred = 0;
   let completedReferred = 0;
@@ -31,13 +33,18 @@ export default async function AccountPage() {
     try {
       const sql = neon(dbUrl);
       const rows = (await sql`
-        SELECT profile_public, referral_code
+        SELECT profile_public, referral_code, military_rank
         FROM users WHERE id = ${session.user.id}::uuid
       `) as {
         profile_public: boolean | null;
         referral_code: string | null;
+        military_rank: string | null;
       }[];
       if (rows[0]?.profile_public === false) profilePublic = false;
+      militaryRank =
+        typeof rows[0]?.military_rank === "string"
+          ? rows[0].military_rank.trim() || null
+          : null;
       referralCode =
         typeof rows[0]?.referral_code === "string"
           ? rows[0].referral_code.trim()
@@ -106,6 +113,8 @@ export default async function AccountPage() {
         </div>
 
         <ProfilePublicToggle initialPublic={profilePublic} />
+
+        <MilitaryRankSettings initialRank={militaryRank} />
 
         {referralLink ? (
           <AccountReferralSection

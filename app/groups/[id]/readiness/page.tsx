@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { neon } from "@neondatabase/serverless";
 import { auth } from "@/auth";
 import { ReadinessParticipationPanel } from "@/components/groups/readiness-participation-panel";
-import { RankBadge } from "@/components/rank-badge";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -280,10 +279,9 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
             Member status
           </h2>
           <div className="overflow-x-auto -mx-2 px-2">
-            <table className="w-full text-left text-sm border-collapse min-w-[720px]">
+            <table className="w-full text-left text-sm border-collapse min-w-[640px]">
               <thead>
                 <tr className="border-b border-forge-border text-[10px] uppercase tracking-widest text-neutral-500">
-                  <th className="py-2 pr-2 font-normal w-10" />
                   <th className="py-2 pr-2 font-normal">Name</th>
                   <th className="py-2 pr-2 font-normal">Rank</th>
                   <th className="py-2 pr-2 font-normal">Best</th>
@@ -297,7 +295,7 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
                 {data.members.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={7}
                       className="py-6 text-xs text-neutral-500"
                     >
                       No members in this company tree.
@@ -309,14 +307,11 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
                       key={r.userId}
                       className="border-b border-forge-border/80 align-top"
                     >
-                      <td className="py-2 pr-2">
-                        <RankBadge rank={r.rank} size="small" />
-                      </td>
                       <td className="py-3 pr-2 text-neutral-200 whitespace-nowrap">
                         {r.name}
                       </td>
                       <td className="py-3 pr-2 text-neutral-400 whitespace-nowrap">
-                        {r.rankGrade}
+                        {r.militaryRankDisplay}
                       </td>
                       <td className="py-3 pr-2 font-heading text-base text-white tabular-nums whitespace-nowrap">
                         {Math.round(r.bestTotal)}
