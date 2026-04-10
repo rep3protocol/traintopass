@@ -116,6 +116,8 @@ export async function POST(req: Request) {
   let sent = 0;
   let failed = 0;
 
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   for (const row of recipients) {
     const to = String(row.email).trim();
     if (!to) {
@@ -132,6 +134,7 @@ export async function POST(req: Request) {
         html,
         replyTo: "hello@traintopass.com",
       });
+      await delay(250);
       if (out.error) failed += 1;
       else sent += 1;
     } catch {
