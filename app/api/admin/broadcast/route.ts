@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
   if (testOnly) {
     const resend = new Resend(resendKey);
-    const from = "Train to Pass <onboarding@resend.dev>";
+    const from = "Train to Pass <noreply@traintopass.com>";
     const to = ADMIN_BROADCAST_USER_EMAIL;
     const first = broadcastRecipientFirstName(session.user.name, to);
     const html = buildBroadcastEmailHtml(first, message);
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
   );
 
   const resend = new Resend(resendKey);
-  const from = "Train to Pass <onboarding@resend.dev>";
+  const from = "Train to Pass <noreply@traintopass.com>";
   let sent = 0;
   let failed = 0;
 
