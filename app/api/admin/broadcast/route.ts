@@ -74,7 +74,8 @@ export async function POST(req: Request) {
         replyTo: "hello@traintopass.com",
       });
       if (out.error) {
-        return NextResponse.json({ sent: 0, failed: 1 });
+        console.error("Resend test email error:", JSON.stringify(out.error));
+        return NextResponse.json({ sent: 0, failed: 1, error: out.error });
       }
       return NextResponse.json({ sent: 1, failed: 0 });
     } catch {
