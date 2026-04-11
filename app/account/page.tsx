@@ -161,6 +161,7 @@ export default async function AccountPage() {
         <AccountBillingPanel
           nextBillingDate={billing.nextBillingDate}
           plan={billing.plan}
+          paid={paid}
           canOpenBillingPortal={!!stripeCustomerId}
         />
 

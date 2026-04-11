@@ -54,15 +54,25 @@ function formatNextBillingLabel(iso: string | null): string {
 type Props = {
   nextBillingDate: string | null;
   plan: string | null;
+  paid: boolean;
   canOpenBillingPortal: boolean;
 };
 
 export function AccountBillingPanel({
   nextBillingDate,
   plan,
+  paid,
   canOpenBillingPortal,
 }: Props) {
-  const displayPlan = plan === "Pro" ? "Pro" : "Free";
+  const displayPlan =
+    plan === "Pro"
+      ? "Pro"
+      : plan === null && paid
+        ? "Pro (Beta Access)"
+        : "Free";
+
+  const displayNextBilling =
+    plan === null && paid ? "—" : formatNextBillingLabel(nextBillingDate);
 
   return (
     <section className="border border-forge-border bg-forge-panel p-6 space-y-3">
@@ -75,9 +85,7 @@ export function AccountBillingPanel({
       </p>
       <p className="text-sm text-neutral-400">
         <span className="text-neutral-500">Next billing:</span>{" "}
-        <span className="text-neutral-200">
-          {formatNextBillingLabel(nextBillingDate)}
-        </span>
+        <span className="text-neutral-200">{displayNextBilling}</span>
       </p>
       <AccountBillingButton canOpenBillingPortal={canOpenBillingPortal} />
     </section>
