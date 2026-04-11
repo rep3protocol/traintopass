@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 type WorkoutLogEntry = {
@@ -8,6 +9,17 @@ type WorkoutLogEntry = {
   notes: string;
   exercises: unknown[];
   created_at: string;
+};
+
+/** Snapshot type for pre-save logs (alias for clarity in feedback state). */
+type WorkoutLog = WorkoutLogEntry;
+
+type Exercise = {
+  name: string;
+  reps?: number;
+  weight?: number;
+  unit?: "lbs" | "kg";
+  time?: string;
 };
 
 type ExerciseFormRow = {
@@ -105,6 +117,201 @@ function formatListDate(ymd: string): string {
   });
 }
 
+function formatFeedbackHeaderDate(): string {
+  return new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function normalizeExerciseName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function exerciseFromPayloadItem(ex: unknown): Exercise | null {
+  if (!ex || typeof ex !== "object") return null;
+  const e = ex as Record<string, unknown>;
+  const name = typeof e.name === "string" ? e.name.trim() : "";
+  if (!name) return null;
+  const out: Exercise = { name };
+  if (typeof e.reps === "number" && !Number.isNaN(e.reps)) {
+    out.reps = e.reps;
+  } else if (e.reps != null && String(e.reps).trim() !== "") {
+    const r = parseInt(String(e.reps), 10);
+    if (!Number.isNaN(r)) out.reps = r;
+  }
+  if (e.weight != null && String(e.weight).trim() !== "") {
+    const w =
+      typeof e.weight === "number" ? e.weight : parseFloat(String(e.weight));
+    if (!Number.isNaN(w)) {
+      out.weight = w;
+      out.unit = e.unit === "kg" ? "kg" : "lbs";
+    }
+  }
+  if (typeof e.time === "string" && e.time.trim()) out.time = e.time.trim();
+  return out;
+}
+
+function exercisesFromPayload(payload: unknown[]): Exercise[] {
+  return payload
+    .map(exerciseFromPayloadItem)
+    .filter((x): x is Exercise => x !== null);
+}
+
+/** Most recent by log_date among all previous log entries with this name. */
+function findBestPreviousExerciseAcrossLogs(
+  normalizedName: string,
+  previousLogs: WorkoutLog[]
+): Exercise | null {
+  let bestDate = "";
+  let bestEx: Exercise | null = null;
+  for (const log of previousLogs) {
+    const d = log.log_date || "";
+    const exs = Array.isArray(log.exercises) ? log.exercises : [];
+    for (const raw of exs) {
+      const ex = exerciseFromPayloadItem(raw);
+      if (!ex || normalizeExerciseName(ex.name) !== normalizedName) continue;
+      if (d >= bestDate) {
+        bestDate = d;
+        bestEx = ex;
+      }
+    }
+  }
+  return bestEx;
+}
+
+function previousCalendarDayYmd(ymd: string): string {
+  const t = new Date(ymd + "T12:00:00");
+  t.setDate(t.getDate() - 1);
+  return t.toISOString().slice(0, 10);
+}
+
+function computeLoggingStreak(logs: WorkoutLog[], startYmd: string): number {
+  const dates = new Set(
+    logs.map((l) => l.log_date).filter(Boolean) as string[]
+  );
+  let streak = 0;
+  let d = startYmd;
+  while (dates.has(d)) {
+    streak++;
+    d = previousCalendarDayYmd(d);
+  }
+  return streak;
+}
+
+function nameContainsAny(name: string, needles: string[]): boolean {
+  const n = name.toLowerCase();
+  return needles.some((needle) => n.includes(needle.toLowerCase()));
+}
+
+function buildAftImpactMessages(exercises: Exercise[]): string[] {
+  const out: string[] = [];
+  if (
+    exercises.some((e) =>
+      nameContainsAny(e.name, ["run", "2 mile", "2mr", "mile"])
+    )
+  ) {
+    out.push(
+      "Consistent run training is your fastest path to more AFT points. Every session counts toward your 2MR score."
+    );
+  }
+  if (
+    exercises.some((e) =>
+      nameContainsAny(e.name, ["push", "hrp", "hand release"])
+    )
+  ) {
+    out.push(
+      "Push-up volume builds the HRP base. Stay consistent and you'll see it on test day."
+    );
+  }
+  if (
+    exercises.some((e) =>
+      nameContainsAny(e.name, ["dead", "mdl", "trap"])
+    )
+  ) {
+    out.push(
+      "Deadlift strength transfers directly to your MDL score. Progressive overload is the key."
+    );
+  }
+  return out;
+}
+
+type DeltaLine = {
+  key: string;
+  labelClass: string;
+  text: string;
+};
+
+function buildPerformanceDeltaLines(
+  feedbackExercises: Exercise[],
+  previousLogs: WorkoutLog[]
+): { hadMatchingExercise: boolean; lines: DeltaLine[] } {
+  const lines: DeltaLine[] = [];
+  let key = 0;
+  let hadMatchingExercise = false;
+  for (const cur of feedbackExercises) {
+    const prev = findBestPreviousExerciseAcrossLogs(
+      normalizeExerciseName(cur.name),
+      previousLogs
+    );
+    if (!prev) continue;
+    hadMatchingExercise = true;
+    const label = cur.name.trim() || cur.name;
+    if (cur.reps != null && prev.reps != null) {
+      if (cur.reps > prev.reps) {
+        lines.push({
+          key: `reps-${key++}`,
+          labelClass: "text-emerald-400",
+          text: `↑ ${label}: ${prev.reps} → ${cur.reps} reps`,
+        });
+      } else if (cur.reps < prev.reps) {
+        lines.push({
+          key: `reps-${key++}`,
+          labelClass: "text-neutral-500",
+          text: `↓ ${label}: ${prev.reps} → ${cur.reps} reps`,
+        });
+      }
+    }
+    if (
+      cur.weight != null &&
+      prev.weight != null &&
+      cur.unit === prev.unit
+    ) {
+      const unit = cur.unit ?? "lbs";
+      if (cur.weight > prev.weight) {
+        lines.push({
+          key: `w-${key++}`,
+          labelClass: "text-emerald-400",
+          text: `↑ ${label}: ${prev.weight} → ${cur.weight} ${unit}`,
+        });
+      } else if (cur.weight < prev.weight) {
+        lines.push({
+          key: `w-${key++}`,
+          labelClass: "text-neutral-500",
+          text: `↓ ${label}: ${prev.weight} → ${cur.weight} ${unit}`,
+        });
+      }
+    }
+    if (cur.time && prev.time) {
+      if (cur.time < prev.time) {
+        lines.push({
+          key: `t-${key++}`,
+          labelClass: "text-emerald-400",
+          text: `↑ ${label}: ${prev.time} → ${cur.time}`,
+        });
+      } else if (cur.time > prev.time) {
+        lines.push({
+          key: `t-${key++}`,
+          labelClass: "text-neutral-500",
+          text: `↓ ${label}: ${prev.time} → ${cur.time}`,
+        });
+      }
+    }
+  }
+  return { hadMatchingExercise, lines };
+}
+
 const inputClass =
   "w-full border border-forge-border bg-forge-bg px-3 py-2 text-sm text-white outline-none focus:border-forge-accent";
 
@@ -114,7 +321,11 @@ type Props = {
 
 export function WorkoutLogClient({ userId }: Props) {
   const [logs, setLogs] = useState<WorkoutLogEntry[]>([]);
-  const [view, setView] = useState<"list" | "add" | "edit">("list");
+  const [view, setView] = useState<"list" | "add" | "edit" | "feedback">(
+    "list"
+  );
+  const [feedbackExercises, setFeedbackExercises] = useState<Exercise[]>([]);
+  const [previousLogs, setPreviousLogs] = useState<WorkoutLog[]>([]);
   const [editingLog, setEditingLog] = useState<WorkoutLogEntry | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -208,8 +419,12 @@ export function WorkoutLogClient({ userId }: Props) {
           return;
         }
       }
+      setPreviousLogs([...logs]);
+      setFeedbackExercises(exercisesFromPayload(payload));
       await fetchLogs();
-      cancelForm();
+      setEditingLog(null);
+      setFormError(null);
+      setView("feedback");
     } finally {
       setSaving(false);
     }
@@ -235,6 +450,116 @@ export function WorkoutLogClient({ userId }: Props) {
 
   function addExerciseRow() {
     setExerciseRows((rows) => [...rows, emptyExerciseRow()]);
+  }
+
+  function leaveFeedback() {
+    setView("list");
+    setFeedbackExercises([]);
+    setPreviousLogs([]);
+  }
+
+  if (view === "feedback") {
+    const { hadMatchingExercise, lines: deltaLines } =
+      buildPerformanceDeltaLines(feedbackExercises, previousLogs);
+    const aftMsgs = buildAftImpactMessages(feedbackExercises);
+    const streak = computeLoggingStreak(logs, todayYmd());
+    const aftFallback =
+      "Every session builds your base. Stay consistent and your AFT score will follow.";
+
+    return (
+      <div className="space-y-8 border border-forge-border bg-forge-panel px-6 py-4">
+        <header className="space-y-2">
+          <h2 className="font-heading text-3xl text-white tracking-wide">
+            Workout Complete
+          </h2>
+          <p className="text-xs uppercase tracking-widest text-neutral-500">
+            {formatFeedbackHeaderDate()}
+          </p>
+        </header>
+
+        <section>
+          <h3 className="text-[10px] uppercase tracking-widest text-neutral-500 mb-3">
+            What changed
+          </h3>
+          {!hadMatchingExercise ? (
+            <p className="text-sm text-neutral-400">
+              No previous data to compare yet. Keep logging to track progress.
+            </p>
+          ) : deltaLines.length === 0 ? null : (
+            <div>
+              {deltaLines.map((line) => (
+                <div
+                  key={line.key}
+                  className="flex justify-between items-center py-2 border-b border-forge-border/50 text-sm"
+                >
+                  <span className={line.labelClass}>{line.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h3 className="text-[10px] uppercase tracking-widest text-neutral-500 mb-3">
+            AFT Impact
+          </h3>
+          {aftMsgs.length === 0 ? (
+            <p className="text-sm text-neutral-400 leading-relaxed">
+              {aftFallback}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {aftMsgs.map((msg, i) => (
+                <p
+                  key={i}
+                  className="text-sm text-neutral-400 leading-relaxed"
+                >
+                  {msg}
+                </p>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
+          {streak >= 2 ? (
+            <p className="font-heading text-2xl text-forge-accent">
+              {streak} day training streak 🔥
+            </p>
+          ) : streak === 1 ? (
+            <p className="text-sm text-neutral-400">
+              First session logged. Come back tomorrow to start a streak.
+            </p>
+          ) : null}
+        </section>
+
+        {logs.length >= 3 ? (
+          <section className="border border-forge-accent/30 bg-forge-accent/5 p-4 space-y-2">
+            <h3 className="font-heading text-lg text-white">
+              You&apos;re building momentum.
+            </h3>
+            <p className="text-sm text-neutral-400">
+              Pro members get an AI training plan built around their actual
+              AFT weak events — not a generic program.
+            </p>
+            <Link
+              href="/train"
+              className="block w-full border-2 border-forge-accent bg-forge-accent px-8 py-3 text-center text-xs font-semibold uppercase tracking-widest text-forge-bg hover:bg-transparent hover:text-forge-accent transition-colors"
+            >
+              Unlock Custom Plan — $7/mo
+            </Link>
+          </section>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={leaveFeedback}
+          className="border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-neutral-400 hover:border-forge-accent hover:text-forge-accent transition-colors w-full"
+        >
+          Back to Log
+        </button>
+      </div>
+    );
   }
 
   if (view === "add" || view === "edit") {
