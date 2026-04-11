@@ -73,6 +73,12 @@ export function SiteHeader() {
             >
               Dashboard
             </Link>
+            <Link
+              href="/log"
+              className="text-sm text-neutral-500 hover:text-forge-accent uppercase tracking-widest"
+            >
+              LOG
+            </Link>
             {session.user.email?.trim().toLowerCase() ===
             ADMIN_BROADCAST_USER_EMAIL ? (
               <Link

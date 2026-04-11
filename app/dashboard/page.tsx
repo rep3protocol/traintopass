@@ -367,6 +367,21 @@ export default async function DashboardPage() {
 
         <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
           <h2 className="font-heading text-xl text-white tracking-wide">
+            WORKOUT LOG
+          </h2>
+          <p className="text-sm text-neutral-400 leading-relaxed">
+            Track your daily training sessions and monitor progress over time.
+          </p>
+          <Link
+            href="/log"
+            className="inline-block border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
+          >
+            View workout log →
+          </Link>
+        </section>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+          <h2 className="font-heading text-xl text-white tracking-wide">
             MY UNIT
           </h2>
           {unitSummary ? (
