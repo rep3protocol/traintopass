@@ -4,18 +4,12 @@ import { useState } from "react";
 
 type Props = {
   referralLink: string;
-  totalReferred: number;
   completedReferred: number;
-  pendingReferred: number;
-  monthsEarned: number;
 };
 
 export function AccountReferralSection({
   referralLink,
-  totalReferred,
   completedReferred,
-  pendingReferred,
-  monthsEarned,
 }: Props) {
   const [copied, setCopied] = useState(false);
 
@@ -29,8 +23,13 @@ export function AccountReferralSection({
     }
   }
 
+  const pct = Math.min(100, (completedReferred / 3) * 100);
+
   return (
     <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+      <p className="text-[10px] uppercase tracking-widest text-neutral-500">
+        MISSION: INVITE 3 FRIENDS
+      </p>
       <h2 className="font-heading text-xl text-white tracking-wide">
         Refer a Friend
       </h2>
@@ -50,22 +49,20 @@ export function AccountReferralSection({
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <ul className="text-sm text-neutral-500 space-y-1">
-        <li>
-          Friends referred:{" "}
-          <span className="text-neutral-300">{totalReferred}</span>
-        </li>
-        <li>
-          Months earned:{" "}
-          <span className="text-neutral-300">{monthsEarned}</span>
-        </li>
-        <li>
-          Pending / completed:{" "}
-          <span className="text-neutral-300">
-            {pendingReferred} / {completedReferred}
-          </span>
-        </li>
-      </ul>
+      <div className="space-y-2">
+        <div className="h-2 bg-forge-bg border border-forge-border overflow-hidden rounded-none">
+          <div
+            className="h-full bg-forge-accent transition-[width] duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <p className="text-xs text-neutral-400">
+          {completedReferred} / 3 completed
+        </p>
+        <p className="text-xs text-neutral-500">
+          Reward: +1 free month per referral
+        </p>
+      </div>
     </section>
   );
 }
