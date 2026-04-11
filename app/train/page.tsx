@@ -17,6 +17,7 @@ import {
   LS_GENERAL_PROGRAM_KEY,
   STORAGE_UNLOCK_KEY,
 } from "@/lib/storage-keys";
+import { MINI_PLANS } from "@/lib/mini-plans";
 
 const GOALS: GeneralProgramGoal[] = [
   "Strength",
@@ -318,6 +319,35 @@ export default function TrainPage() {
             </Link>
           </div>
         ) : null}
+
+        <div>
+          <h2 className="font-heading text-2xl text-white tracking-wide mt-10">
+            Free Training Plans
+          </h2>
+          <p className="text-sm text-neutral-500 mt-1 mb-4">
+            No account needed. Start training today.
+          </p>
+          <div className="grid grid-cols-1 gap-3">
+            {MINI_PLANS.map((plan) => (
+              <Link
+                key={plan.id}
+                href={`/train/mini-plan/${plan.id}`}
+                className="border border-forge-border bg-forge-panel p-4 flex flex-col gap-2 hover:border-forge-accent/50 transition-colors"
+              >
+                <span className="font-heading text-lg text-white">
+                  {plan.title}
+                </span>
+                <span className="text-xs text-neutral-500">{plan.subtitle}</span>
+                <span className="text-[10px] uppercase tracking-widest text-neutral-600">
+                  {plan.duration}
+                </span>
+              </Link>
+            ))}
+          </div>
+          <p className="text-xs text-neutral-600 text-center mt-6 mb-2">
+            — or unlock a custom AI plan built around your scores —
+          </p>
+        </div>
 
         <section className="mt-10 border border-forge-border bg-forge-panel p-4 sm:p-6 space-y-4">
           <h2 className="font-heading text-xl text-forge-accent tracking-wide">
