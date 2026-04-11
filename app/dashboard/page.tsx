@@ -382,6 +382,24 @@ export default async function DashboardPage() {
 
         <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
           <h2 className="font-heading text-xl text-white tracking-wide">
+            COMMUNITY
+          </h2>
+          <p className="text-sm text-neutral-400 leading-relaxed">
+            Join the Train to Pass Discord — daily check-ins, progress sharing,
+            and squad accountability.
+          </p>
+          <a
+            href="https://discord.gg/9bKg73p4"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block border border-forge-border bg-forge-bg px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:border-forge-accent transition-colors"
+          >
+            Join the Discord →
+          </a>
+        </section>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+          <h2 className="font-heading text-xl text-white tracking-wide">
             MY UNIT
           </h2>
           {unitSummary ? (

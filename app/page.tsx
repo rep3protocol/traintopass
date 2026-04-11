@@ -243,6 +243,18 @@ export default function Home() {
 
         <LandingRankLadder />
 
+        <p className="mt-16 text-sm text-neutral-500">
+          Join the community →{" "}
+          <a
+            href="https://discord.gg/9bKg73p4"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-forge-accent hover:underline"
+          >
+            discord.gg/9bKg73p4
+          </a>
+        </p>
+
         <Link
           href="/calculate"
           className="mt-16 inline-block border-2 border-forge-accent bg-forge-accent px-10 py-4 font-body text-sm font-semibold uppercase tracking-widest text-forge-bg transition-colors hover:bg-transparent hover:text-forge-accent"
