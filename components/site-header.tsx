@@ -55,9 +55,6 @@ export function SiteHeader() {
             <span className="text-forge-accent">PASS</span>
           </Link>
           <nav className="hidden flex-wrap items-center gap-4 sm:flex sm:gap-6">
-            <Link href="/about" className={desktopNavLinkClass}>
-              About
-            </Link>
             <Link href="/groups" className={desktopNavLinkClass}>
               Units
             </Link>
@@ -164,9 +161,6 @@ export function SiteHeader() {
           className="space-y-3 border-t border-forge-border bg-forge-panel px-4 py-4 sm:hidden"
           aria-label="Mobile"
         >
-          <Link href="/about" className={drawerLinkClass} onClick={closeMobile}>
-            About
-          </Link>
           <Link href="/groups" className={drawerLinkClass} onClick={closeMobile}>
             Units
           </Link>

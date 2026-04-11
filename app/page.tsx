@@ -5,9 +5,9 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
-  title: "Train to Pass — Army Fitness Test Score Calculator & Training Plans",
+  title: "Train to Pass — Army Fitness Test Calculator & Training Plans",
   description:
-    "Calculate your AFT scores instantly and get a personalized 4-week training plan built around your weakest events. Free for soldiers and military recruits.",
+    "Free Army Fitness Test calculator built by a National Guard soldier. Know your weak events, get a personalized training plan, and train smarter.",
   keywords: [
     "Army fitness test calculator",
     "AFT score calculator",
@@ -16,10 +16,9 @@ export const metadata: Metadata = {
     "military fitness test prep",
   ],
   openGraph: {
-    title:
-      "Train to Pass — Army Fitness Test Score Calculator & Training Plans",
+    title: "Train to Pass — Army Fitness Test Calculator & Training Plans",
     description:
-      "Calculate your AFT scores instantly and get a personalized 4-week training plan built around your weakest events. Free for soldiers and military recruits.",
+      "Free Army Fitness Test calculator built by a National Guard soldier. Know your weak events, get a personalized training plan, and train smarter.",
   },
 };
 
@@ -76,6 +75,22 @@ export default function Home() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="mt-20 w-full max-w-2xl text-center">
+          <h2 className="font-heading text-3xl sm:text-4xl text-white tracking-wide">
+            BUILT BY A SOLDIER, FOR SOLDIERS
+          </h2>
+          <p className="mt-6 text-sm sm:text-base text-neutral-400 leading-relaxed">
+            Train to Pass was built by an active National Guard soldier who
+            knows firsthand how stressful the AFT can be. This tool exists to
+            give every soldier — and every civilian preparing to enlist — a
+            clear picture of where they stand and exactly what to work on.
+          </p>
+          <p className="mt-4 text-sm text-neutral-500 leading-relaxed">
+            No fluff. No generic advice. Just real scores, real analysis, and a
+            training plan built around your weakest events.
+          </p>
         </section>
 
         <section className="mt-20 w-full max-w-4xl text-left">
