@@ -241,14 +241,14 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
             <span className="inline-flex rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-400">
               Weakest: {data.weakestEvent.label} (
               <span className="font-heading tabular-nums">
-                {data.weakestEvent.avg.toFixed(1)}
+                {Math.round(data.weakestEvent.avg)}
               </span>
               )
             </span>
             <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400">
               Strongest: {data.strongestEvent.label} (
               <span className="font-heading tabular-nums">
-                {data.strongestEvent.avg.toFixed(1)}
+                {Math.round(data.strongestEvent.avg)}
               </span>
               )
             </span>
@@ -298,7 +298,7 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
                   <span
                     className={`font-heading tabular-nums ${eventAvgColorClass(ev.avg)}`}
                   >
-                    {ev.avg.toFixed(1)}
+                    {Math.round(ev.avg).toString()}
                   </span>
                 </div>
                 <div className="h-2 rounded bg-forge-bg border border-forge-border overflow-hidden">
@@ -325,9 +325,14 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
             <table className="w-full text-left text-sm border-collapse min-w-[520px]">
               <thead>
                 <tr className="border-b border-forge-border text-[10px] uppercase tracking-widest text-neutral-500">
-                  <th className="py-2 pr-4 font-normal">Unit</th>
+                  <th className="py-2 pr-4 font-normal border border-forge-border">
+                    Unit
+                  </th>
                   {EVENT_ORDER.map((k) => (
-                    <th key={k} className="py-2 pr-4 font-normal text-right">
+                    <th
+                      key={k}
+                      className="py-2 pr-4 font-normal text-right border border-forge-border"
+                    >
                       {SHORT_EVENT_LABEL[k]}
                     </th>
                   ))}
@@ -340,7 +345,7 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
                     className="border-b border-forge-border/80"
                   >
                     <td
-                      className={`py-3 pr-4 text-neutral-200 whitespace-nowrap ${idx === 0 ? "font-semibold" : ""}`}
+                      className={`py-3 pr-4 text-neutral-200 whitespace-nowrap border border-forge-border ${idx === 0 ? "font-semibold" : ""}`}
                     >
                       {row.platoonName}
                     </td>
@@ -349,9 +354,9 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
                       return (
                         <td
                           key={k}
-                          className={`py-3 pr-4 text-right font-heading tabular-nums text-sm ${heatmapCellClass(v)}`}
+                          className={`py-3 pr-4 text-right font-heading tabular-nums text-sm border border-forge-border ${heatmapCellClass(v)}`}
                         >
-                          {v.toFixed(1)}
+                          {Math.round(v).toString()}
                         </td>
                       );
                     })}

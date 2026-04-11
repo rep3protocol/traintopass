@@ -547,7 +547,7 @@ export async function loadCompanyReadiness(
     return {
       key: k,
       label: SHORT_EVENT[k],
-      avg: n > 0 ? Math.round((sum / n) * 10) / 10 : 0,
+      avg: n > 0 ? Math.round(sum / n) : 0,
     };
   });
 
@@ -718,7 +718,7 @@ export async function loadCompanyReadiness(
     const eventAvgs = {} as Record<EventKey, number>;
     for (const k of EVENT_ORDER) {
       const sum = sub.reduce((s, r) => s + (r.eventScores[k] ?? 0), 0);
-      eventAvgs[k] = Math.round((sum / sub.length) * 10) / 10;
+      eventAvgs[k] = Math.round(sum / sub.length);
     }
     platoonHeatmap.push({ platoonName: pg.name, eventAvgs });
   }
