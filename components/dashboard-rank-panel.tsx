@@ -24,12 +24,14 @@ type Props = {
   paid: boolean;
   initialRank: RankId;
   initialStreak: number;
+  estimatedStreakPoints?: number;
 };
 
 export function DashboardRankPanel({
   paid,
   initialRank,
   initialStreak,
+  estimatedStreakPoints,
 }: Props) {
   const [streak, setStreak] = useState(initialStreak);
   const [calc, setCalc] = useState<CalcJson | null>(null);
@@ -79,6 +81,13 @@ export function DashboardRankPanel({
           <p className="text-sm text-neutral-400">
             🔥 {streak}-day streak
           </p>
+          {estimatedStreakPoints != null &&
+          estimatedStreakPoints > 0 &&
+          initialStreak >= 2 ? (
+            <p className="text-xs text-forge-accent">
+              +{estimatedStreakPoints} est. pts from consistency
+            </p>
+          ) : null}
         </div>
       </div>
 

@@ -203,6 +203,43 @@ export default async function DashboardPage() {
     }
   }
 
+  const estimatedStreakPoints = Math.min(initialStreak * 2, 50);
+
+  const bestRow =
+    rows.length > 0
+      ? rows.reduce((a, b) => (a.total_score > b.total_score ? a : b))
+      : null;
+  const bestScore = bestRow ? Number(bestRow.total_score) : null;
+  const ptsFromPassing =
+    bestScore != null && bestScore < 300 ? 300 - Math.round(bestScore) : null;
+  const eventLabelMap: Record<string, string> = {
+    mdl: "MDL",
+    hrp: "HRP",
+    sdc: "SDC",
+    plk: "PLK",
+    twoMR: "2MR",
+  };
+  const weakEvents: string[] = bestRow
+    ? Object.entries(bestRow.event_scores)
+        .filter(([, v]) => typeof v === "number" && v < 75)
+        .map(([k]) => eventLabelMap[k] ?? k)
+    : [];
+
+  let proj1week: number | null = null;
+  let proj2weeks: number | null = null;
+  let weeksToPass: number | null = null;
+
+  if (bestScore != null && bestScore < 300) {
+    let weeklyDelta = 3;
+    if (rows.length >= 2) {
+      const delta = rows[0].total_score - rows[1].total_score;
+      if (delta > 0) weeklyDelta = Math.min(delta, 15);
+    }
+    proj1week = Math.round(bestScore + weeklyDelta);
+    proj2weeks = Math.round(bestScore + weeklyDelta * 2);
+    weeksToPass = Math.ceil((300 - bestScore) / Math.max(weeklyDelta, 1));
+  }
+
   const displayName =
     session.user.name?.trim() ||
     session.user.email?.split("@")[0] ||
@@ -233,10 +270,52 @@ export default async function DashboardPage() {
           </p>
         </div>
 
+        {bestScore != null && bestScore >= 240 && bestScore < 300 ? (
+          <div className="border border-amber-500/40 bg-amber-500/5 p-4 space-y-2">
+            <p className="text-[10px] uppercase tracking-widest text-amber-400">
+              Critical Zone
+            </p>
+            <p className="font-heading text-2xl text-white">
+              You're {ptsFromPassing} pts from passing.
+            </p>
+            {weakEvents.length > 0 && (
+              <p className="text-sm text-neutral-400">
+                Focus: {weakEvents.join(" · ")}
+              </p>
+            )}
+            {!paid ? (
+              <Link
+                href="/train"
+                className="inline-block mt-2 border border-forge-accent px-4 py-2 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:bg-forge-accent hover:text-forge-bg transition-colors"
+              >
+                Get a targeted plan → $7/mo
+              </Link>
+            ) : (
+              <Link
+                href="/train"
+                className="inline-block mt-2 text-xs font-semibold uppercase tracking-widest text-forge-accent hover:underline"
+              >
+                View your training plan →
+              </Link>
+            )}
+          </div>
+        ) : bestScore != null && bestScore >= 300 ? (
+          <div className="border border-emerald-500/40 bg-emerald-500/5 p-4 space-y-1">
+            <p className="text-[10px] uppercase tracking-widest text-emerald-400">
+              Passing
+            </p>
+            <p className="text-sm text-neutral-300">
+              Best score: {Math.round(bestScore)} pts — keep training to
+              improve your margin.
+            </p>
+          </div>
+        ) : null}
+
         <DashboardRankPanel
           paid={paid}
           initialRank={initialRank}
           initialStreak={initialStreak}
+          estimatedStreakPoints={estimatedStreakPoints}
         />
 
         <DashboardChallengeCard
@@ -262,6 +341,58 @@ export default async function DashboardPage() {
             Run calculator
           </Link>
         </div>
+
+        {proj1week != null &&
+        proj2weeks != null &&
+        weeksToPass != null ? (
+          <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+            <h2 className="font-heading text-xl text-white tracking-wide">
+              SCORE PROJECTION
+            </h2>
+            <p className="text-xs text-neutral-500 uppercase tracking-widest">
+              At current training pace
+            </p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-widest text-neutral-600">
+                  1 week
+                </p>
+                <p className="font-heading text-2xl text-white tabular-nums">
+                  {proj1week}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-widest text-neutral-600">
+                  2 weeks
+                </p>
+                <p className="font-heading text-2xl text-white tabular-nums">
+                  {proj2weeks}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-widest text-neutral-600">
+                  Pass (300)
+                </p>
+                <p
+                  className={`font-heading text-2xl tabular-nums ${weeksToPass <= 4 ? "text-forge-accent" : "text-white"}`}
+                >
+                  {weeksToPass > 20 ? "20+w" : `~${weeksToPass}w`}
+                </p>
+              </div>
+            </div>
+            {!paid && (
+              <p className="text-xs text-neutral-500 pt-2 border-t border-forge-border">
+                Pro members get an AI plan to accelerate this timeline.{" "}
+                <Link
+                  href="/train"
+                  className="text-forge-accent hover:underline"
+                >
+                  Unlock →
+                </Link>
+              </p>
+            )}
+          </section>
+        ) : null}
 
         <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
           <h2 className="font-heading text-xl text-white tracking-wide">
