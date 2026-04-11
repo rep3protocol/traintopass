@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { neon } from "@neondatabase/serverless";
+import { EVENT_ORDER, type EventKey } from "@/lib/aft-scoring";
 import { auth } from "@/auth";
+import { AtRiskActions } from "@/components/groups/at-risk-actions";
 import { ReadinessParticipationPanel } from "@/components/groups/readiness-participation-panel";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -10,6 +12,7 @@ import {
   AFT_GENERAL_PASS,
   loadCompanyReadiness,
   type AtRiskRosterRow,
+  type ReadinessMemberRow,
   type ReadinessRiskRow,
 } from "@/lib/company-readiness";
 import { isUuidParam } from "@/lib/group-route-helpers";
@@ -51,6 +54,41 @@ function atRiskLevelClass(kind: AtRiskRosterRow["kind"]): string {
   if (kind === "failed_last_test") return "text-red-400";
   if (kind === "declining_performance") return "text-orange-400";
   return "text-amber-400";
+}
+
+const SHORT_EVENT_LABEL: Record<EventKey, string> = {
+  mdl: "MDL",
+  hrp: "HRP",
+  sdc: "SDC",
+  plk: "PLK",
+  twoMR: "2MR",
+};
+
+function snapshotStatus(
+  readinessPct: number | null
+): { word: string; wordClass: string } {
+  if (readinessPct == null) {
+    return { word: "—", wordClass: "text-neutral-400" };
+  }
+  if (readinessPct >= 90) {
+    return { word: "GREEN", wordClass: "text-emerald-400" };
+  }
+  if (readinessPct >= 75) {
+    return { word: "AMBER", wordClass: "text-amber-400" };
+  }
+  return { word: "RED", wordClass: "text-red-400" };
+}
+
+function heatmapCellClass(avg: number): string {
+  if (avg >= 85) return "text-emerald-400 bg-emerald-500/10";
+  if (avg >= 70) return "text-amber-400 bg-amber-500/10";
+  return "text-red-400 bg-red-500/10";
+}
+
+function memberOverdue(m: ReadinessMemberRow): boolean {
+  if (m.lastTestDate == null || m.daysSinceLastTest == null) return true;
+  const limit = m.isNgOrReserve ? 365 : 180;
+  return m.daysSinceLastTest > limit;
 }
 
 type PageProps = { params: { id: string } };
@@ -108,6 +146,10 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
   const combatAtRisk = data.riskRows.filter((r) => r.kind === "combat_at_risk");
   const closeToFail = data.riskRows.filter((r) => r.kind === "close_to_fail");
 
+  const testedCount = data.members.filter((m) => m.lastTestDate != null).length;
+  const overdueCount = data.members.filter(memberOverdue).length;
+  const snap = snapshotStatus(data.readinessPct);
+
   return (
     <div className="min-h-screen flex flex-col">
       <SiteHeader />
@@ -134,6 +176,84 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
             standard is {AFT_COMBAT_PASS}+.
           </p>
         </div>
+
+        <section className="border border-forge-border bg-forge-panel p-6 sm:p-8 space-y-5">
+          <h2 className="font-heading text-xl text-white tracking-wide">
+            Commander Snapshot
+          </h2>
+          <div className="inline-flex flex-wrap items-baseline gap-3 rounded-lg border border-forge-border bg-forge-bg px-4 py-3">
+            <span
+              className={`font-heading text-2xl sm:text-3xl tracking-wide ${snap.wordClass}`}
+            >
+              {snap.word}
+            </span>
+            {data.readinessPct != null ? (
+              <>
+                <span className="text-neutral-500 font-heading">—</span>
+                <span className="font-heading text-2xl sm:text-3xl text-white tabular-nums">
+                  {Math.round(data.readinessPct)}%
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-neutral-500">No data</span>
+            )}
+          </div>
+          <p className="text-sm text-neutral-400">
+            {data.trend == null || data.trend === 0 ? (
+              <span className="text-neutral-500">No change vs 30 days ago</span>
+            ) : data.trend > 0 ? (
+              <span className="text-emerald-400">
+                + {data.trend.toFixed(1)}% vs 30 days ago
+              </span>
+            ) : (
+              <span className="text-red-400">
+                - {Math.abs(data.trend).toFixed(1)}% vs 30 days ago
+              </span>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex rounded border border-forge-border bg-forge-bg px-3 py-1.5 text-xs text-neutral-300">
+              <span className="text-neutral-500 mr-1">Tested:</span>
+              <span className="font-heading tabular-nums text-white">
+                {testedCount} / {n}
+              </span>
+            </span>
+            <span className="inline-flex rounded border border-forge-border bg-forge-bg px-3 py-1.5 text-xs text-neutral-300">
+              <span className="text-neutral-500 mr-1">Passing:</span>
+              <span className="font-heading tabular-nums text-white">
+                {data.passingGeneral} / {n}
+              </span>
+            </span>
+            <span className="inline-flex rounded border border-forge-border bg-forge-bg px-3 py-1.5 text-xs text-neutral-300">
+              <span className="text-neutral-500 mr-1">At Risk:</span>
+              <span className="font-heading tabular-nums text-white">
+                {data.atRiskCount}
+              </span>
+            </span>
+            <span className="inline-flex rounded border border-forge-border bg-forge-bg px-3 py-1.5 text-xs text-neutral-300">
+              <span className="text-neutral-500 mr-1">Overdue:</span>
+              <span className="font-heading tabular-nums text-white">
+                {overdueCount}
+              </span>
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-400">
+              Weakest: {data.weakestEvent.label} (
+              <span className="font-heading tabular-nums">
+                {data.weakestEvent.avg.toFixed(1)}
+              </span>
+              )
+            </span>
+            <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400">
+              Strongest: {data.strongestEvent.label} (
+              <span className="font-heading tabular-nums">
+                {data.strongestEvent.avg.toFixed(1)}
+              </span>
+              )
+            </span>
+          </div>
+        </section>
 
         <section className="border border-forge-border bg-forge-panel p-6 sm:p-8 space-y-4">
           <h2 className="font-heading text-xl text-white tracking-wide">
@@ -192,6 +312,54 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-5">
+          <h2 className="font-heading text-xl text-white tracking-wide">
+            Event Performance Heatmap
+          </h2>
+          <p className="text-xs text-neutral-500">
+            Average event score by unit. Green ≥85, amber ≥70, red &lt;70.
+          </p>
+          <div className="overflow-x-auto -mx-2 px-2">
+            <table className="w-full text-left text-sm border-collapse min-w-[520px]">
+              <thead>
+                <tr className="border-b border-forge-border text-[10px] uppercase tracking-widest text-neutral-500">
+                  <th className="py-2 pr-4 font-normal">Unit</th>
+                  {EVENT_ORDER.map((k) => (
+                    <th key={k} className="py-2 pr-4 font-normal text-right">
+                      {SHORT_EVENT_LABEL[k]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.platoonHeatmap.map((row, idx) => (
+                  <tr
+                    key={`${row.platoonName}-${idx}`}
+                    className="border-b border-forge-border/80"
+                  >
+                    <td
+                      className={`py-3 pr-4 text-neutral-200 whitespace-nowrap ${idx === 0 ? "font-semibold" : ""}`}
+                    >
+                      {row.platoonName}
+                    </td>
+                    {EVENT_ORDER.map((k) => {
+                      const v = row.eventAvgs[k] ?? 0;
+                      return (
+                        <td
+                          key={k}
+                          className={`py-3 pr-4 text-right font-heading tabular-nums text-sm ${heatmapCellClass(v)}`}
+                        >
+                          {v.toFixed(1)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <ReadinessParticipationPanel
@@ -301,7 +469,7 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
               </p>
             ) : (
               <div className="overflow-x-auto -mx-2 px-2">
-                <table className="w-full text-left text-sm border-collapse min-w-[960px]">
+                <table className="w-full text-left text-sm border-collapse min-w-[1040px]">
                   <thead>
                     <tr className="border-b border-forge-border text-[10px] uppercase tracking-widest text-neutral-500">
                       <th className="py-2 pr-2 font-normal">Name</th>
@@ -314,7 +482,8 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
                         Current score / required
                       </th>
                       <th className="py-2 pr-2 font-normal">Weak events</th>
-                      <th className="py-2 font-normal">Suggested action</th>
+                      <th className="py-2 pr-2 font-normal">Suggested action</th>
+                      <th className="py-2 pl-2 font-normal">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -345,9 +514,10 @@ export default async function CompanyReadinessPage({ params }: PageProps) {
                             ? r.weakEvents.join(" · ")
                             : "—"}
                         </td>
-                        <td className="py-3 text-xs text-neutral-500 leading-snug max-w-xs">
+                        <td className="py-3 pr-2 text-xs text-neutral-500 leading-snug max-w-xs">
                           {r.suggestedAction}
                         </td>
+                        <AtRiskActions userId={r.userId} groupId={groupId} />
                       </tr>
                     ))}
                   </tbody>

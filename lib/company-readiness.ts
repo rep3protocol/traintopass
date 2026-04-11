@@ -53,12 +53,22 @@ export type AtRiskRosterRow = {
   kind: AutomatedAftRiskKind;
 };
 
+export type PlatoonHeatmapRow = {
+  platoonName: string;
+  eventAvgs: Record<EventKey, number>;
+};
+
 export type CompanyReadinessData = {
   groupName: string;
   members: ReadinessMemberRow[];
   passingGeneral: number;
   passingCombat: number;
   readinessPct: number | null;
+  /** Percentage point delta vs pass rate from best scores recorded before 30 days ago; null if n=0 or no historical rows. */
+  trend: number | null;
+  atRiskCount: number;
+  weakestEvent: EventAvgRow;
+  strongestEvent: EventAvgRow;
   eventAverages: EventAvgRow[];
   ngTotal: number;
   ngCurrent: number;
@@ -68,6 +78,7 @@ export type CompanyReadinessData = {
   stale180: { id: string; name: string }[];
   riskRows: ReadinessRiskRow[];
   atRiskRoster: AtRiskRosterRow[];
+  platoonHeatmap: PlatoonHeatmapRow[];
 };
 
 const SHORT_EVENT: Record<EventKey, string> = {
@@ -160,6 +171,43 @@ function formatCurrentRequiredDisplay(
   return `${Math.round(latestTotal)} / ${required}`;
 }
 
+function emptyEventAvgRows(): EventAvgRow[] {
+  return EVENT_ORDER.map((k) => ({
+    key: k,
+    label: SHORT_EVENT[k],
+    avg: 0,
+  }));
+}
+
+function eventRecordFromAverages(rows: EventAvgRow[]): Record<EventKey, number> {
+  const out = {} as Record<EventKey, number>;
+  for (const r of rows) {
+    out[r.key] = r.avg;
+  }
+  return out;
+}
+
+function minMaxEventAvg(rows: EventAvgRow[]): {
+  weakest: EventAvgRow;
+  strongest: EventAvgRow;
+} {
+  if (rows.length === 0) {
+    const z = {
+      key: "mdl" as EventKey,
+      label: SHORT_EVENT.mdl,
+      avg: 0,
+    };
+    return { weakest: z, strongest: z };
+  }
+  let weakest = rows[0]!;
+  let strongest = rows[0]!;
+  for (const r of rows) {
+    if (r.avg < weakest.avg) weakest = r;
+    if (r.avg > strongest.avg) strongest = r;
+  }
+  return { weakest, strongest };
+}
+
 export async function loadCompanyReadiness(
   dbUrl: string,
   groupId: string
@@ -214,17 +262,19 @@ export async function loadCompanyReadiness(
   }
 
   if (mrows.length === 0) {
+    const eventAverages = emptyEventAvgRows();
+    const { weakest, strongest } = minMaxEventAvg(eventAverages);
     return {
       groupName,
       members: [],
       passingGeneral: 0,
       passingCombat: 0,
       readinessPct: null,
-      eventAverages: EVENT_ORDER.map((k) => ({
-        key: k,
-        label: SHORT_EVENT[k],
-        avg: 0,
-      })),
+      trend: null,
+      atRiskCount: 0,
+      weakestEvent: weakest,
+      strongestEvent: strongest,
+      eventAverages,
       ngTotal: 0,
       ngCurrent: 0,
       adTotal: 0,
@@ -233,6 +283,9 @@ export async function loadCompanyReadiness(
       stale180: [],
       riskRows: [],
       atRiskRoster: [],
+      platoonHeatmap: [
+        { platoonName: "Company", eventAvgs: eventRecordFromAverages(eventAverages) },
+      ],
     };
   }
 
@@ -262,6 +315,34 @@ export async function loadCompanyReadiness(
       r.total_score,
       r.event_scores,
       r.created_at
+    FROM ranked r
+    WHERE r.rn = 1
+  `;
+
+  const rankedBefore30d = await sql`
+    WITH RECURSIVE subtree AS (
+      SELECT id FROM "groups" WHERE id = ${groupId}::uuid
+      UNION ALL
+      SELECT g.id FROM "groups" g
+      INNER JOIN subtree s ON g.parent_group_id = s.id
+    ),
+    ranked AS (
+      SELECT
+        sh.user_id,
+        sh.total_score,
+        sh.created_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY sh.user_id
+          ORDER BY sh.total_score DESC, sh.created_at DESC
+        ) AS rn
+      FROM score_history sh
+      INNER JOIN group_members gm
+        ON gm.user_id = sh.user_id AND gm.group_id IN (SELECT id FROM subtree)
+      WHERE sh.created_at < NOW() - INTERVAL '30 days'
+    )
+    SELECT
+      r.user_id::text,
+      r.total_score
     FROM ranked r
     WHERE r.rn = 1
   `;
@@ -576,12 +657,82 @@ export async function loadCompanyReadiness(
   stale365.sort((a, b) => a.name.localeCompare(b.name));
   stale180.sort((a, b) => a.name.localeCompare(b.name));
 
+  let passingGeneral30DaysAgo = 0;
+  for (const r of rankedBefore30d as {
+    user_id: string;
+    total_score: number;
+  }[]) {
+    if (Number(r.total_score ?? 0) >= AFT_GENERAL_PASS) {
+      passingGeneral30DaysAgo += 1;
+    }
+  }
+  const hasHistorical30 = (rankedBefore30d as unknown[]).length > 0;
+  let trend: number | null = null;
+  if (n > 0 && hasHistorical30) {
+    const pastPct = Math.round((passingGeneral30DaysAgo / n) * 1000) / 10;
+    trend =
+      Math.round(((readinessPct ?? 0) - pastPct) * 10) / 10;
+  }
+
+  const { weakest: weakestEvent, strongest: strongestEvent } =
+    minMaxEventAvg(eventAverages);
+
+  const platoonGroupsRaw = await sql`
+    SELECT id::text, name FROM "groups"
+    WHERE parent_group_id = ${groupId}::uuid
+      AND unit_type::text = 'platoon'
+    ORDER BY name ASC
+  `;
+  const platoonMemberRaw = await sql`
+    SELECT gm.group_id::text AS group_id, gm.user_id::text AS user_id
+    FROM group_members gm
+    INNER JOIN "groups" g ON g.id = gm.group_id
+    WHERE g.parent_group_id = ${groupId}::uuid
+      AND g.unit_type::text = 'platoon'
+  `;
+
+  const userIdsByPlatoon = new Map<string, Set<string>>();
+  for (const row of platoonMemberRaw as {
+    group_id: string;
+    user_id: string;
+  }[]) {
+    let set = userIdsByPlatoon.get(row.group_id);
+    if (!set) {
+      set = new Set();
+      userIdsByPlatoon.set(row.group_id, set);
+    }
+    set.add(row.user_id);
+  }
+
+  const platoonHeatmap: PlatoonHeatmapRow[] = [
+    {
+      platoonName: "Company",
+      eventAvgs: eventRecordFromAverages(eventAverages),
+    },
+  ];
+  for (const pg of platoonGroupsRaw as { id: string; name: string }[]) {
+    const idSet = userIdsByPlatoon.get(pg.id);
+    if (!idSet || idSet.size === 0) continue;
+    const sub = members.filter((m) => idSet.has(m.userId));
+    if (sub.length === 0) continue;
+    const eventAvgs = {} as Record<EventKey, number>;
+    for (const k of EVENT_ORDER) {
+      const sum = sub.reduce((s, r) => s + (r.eventScores[k] ?? 0), 0);
+      eventAvgs[k] = Math.round((sum / sub.length) * 10) / 10;
+    }
+    platoonHeatmap.push({ platoonName: pg.name, eventAvgs });
+  }
+
   return {
     groupName,
     members,
     passingGeneral,
     passingCombat,
     readinessPct,
+    trend,
+    atRiskCount: atRiskRoster.length,
+    weakestEvent,
+    strongestEvent,
     eventAverages,
     ngTotal,
     ngCurrent,
@@ -591,5 +742,6 @@ export async function loadCompanyReadiness(
     stale180,
     riskRows,
     atRiskRoster,
+    platoonHeatmap,
   };
 }
