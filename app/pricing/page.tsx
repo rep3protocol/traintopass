@@ -68,6 +68,61 @@ export default function PricingPage() {
 
         <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
           <h2 className="font-heading text-xl text-white tracking-wide">
+            What&apos;s included
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-neutral-500 mb-2">
+                FREE
+              </p>
+              <ul className="space-y-2 list-none">
+                {[
+                  "AFT score calculator (all 5 events)",
+                  "Pass/fail analysis",
+                  "Leaderboard access",
+                  "Public profile",
+                  "Workout logger",
+                  "Week 1 & 2 of your AFT training plan",
+                  "Shareable score card",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span className="text-forge-accent shrink-0">—</span>
+                    <span className="text-sm text-neutral-400">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-forge-accent mb-2">
+                PRO — $7/MO
+              </p>
+              <ul className="space-y-2 list-none">
+                {[
+                  "Everything in free",
+                  "Full 4-week AFT training plan targeting weak events",
+                  "General 8-week training program (Strength / Cardio / Full Fitness)",
+                  "Unlimited program regeneration",
+                  "Customized to your schedule (3–6 days/week)",
+                  "Score history & progress tracking",
+                  "Achievement patches & rank progression (E-1 → General)",
+                  "Daily PT challenges",
+                  "Squad creation (up to 15 members)",
+                  "Enlistment prep 12-week track",
+                  "PDF download & email delivery",
+                  "Event deep-dives for weak events",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span className="text-forge-accent shrink-0">—</span>
+                    <span className="text-sm text-neutral-400">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section className="border border-forge-border bg-forge-panel p-6 space-y-4">
+          <h2 className="font-heading text-xl text-white tracking-wide">
             Unit tiers
           </h2>
           <ul className="space-y-6 text-sm text-neutral-400 leading-relaxed">
@@ -76,32 +131,29 @@ export default function PricingPage() {
                 Squad
               </span>
               <span className="text-neutral-500"> — </span>
-              Included with Pro ($7/mo). Up to 15 members. Create from{" "}
-              <Link href="/groups/create" className="text-forge-accent hover:underline">
-                Create unit
-              </Link>
-              .
+              Included with Pro ($7/mo). Up to 15 members.
             </li>
             <li>
               <span className="text-forge-accent font-heading text-lg">
                 Platoon
               </span>
               <span className="text-neutral-500"> — </span>
-              +$15/mo add-on on top of Pro. Up to 60 members. You&apos;ll be
-              prompted for Stripe when you select Platoon and create the unit.
+              +$15/mo add-on (total $22/mo with Pro). Up to 60 members. Includes
+              platoon leaderboard and unit readiness view.
             </li>
             <li>
               <span className="text-forge-accent font-heading text-lg">
                 Company
               </span>
               <span className="text-neutral-500"> — </span>
-              +$30/mo add-on on top of Pro. Up to 250 members. Checkout runs when
-              you select Company and create the unit.
+              +$30/mo add-on (total $37/mo with Pro). Up to 250 members. Includes
+              Commander Snapshot Dashboard, Event Performance Heatmap, At-Risk
+              Roster with action buttons, and automated risk detection.
             </li>
           </ul>
           <p className="text-xs text-neutral-500 border-t border-forge-border pt-4">
-            Members who join your squad, platoon, or company with a join code do
-            not need Pro — a free account is enough.
+            Add-ons are billed separately on top of your Pro subscription.
+            Members joining your unit only need a free account.
           </p>
           <Link
             href="/groups/create"
