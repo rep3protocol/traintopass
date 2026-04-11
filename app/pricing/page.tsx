@@ -138,17 +138,19 @@ export default function PricingPage() {
                 Platoon
               </span>
               <span className="text-neutral-500"> — </span>
-              +$15/mo add-on (total $22/mo with Pro). Up to 60 members. Includes
-              platoon leaderboard and unit readiness view.
+              +$15/mo add-on (total $22/mo with Pro). Up to 60 members. Platoon
+              leaderboard and shared unit page.
             </li>
             <li>
               <span className="text-forge-accent font-heading text-lg">
                 Company
               </span>
               <span className="text-neutral-500"> — </span>
-              +$30/mo add-on (total $37/mo with Pro). Up to 250 members. Includes
-              Commander Snapshot Dashboard, Event Performance Heatmap, At-Risk
-              Roster with action buttons, and automated risk detection.
+              +$30/mo add-on (total $37/mo with Pro). Up to 250 members. Full
+              command suite: Commander Snapshot Dashboard, Event Performance
+              Heatmap, At-Risk Roster with action buttons, and automated risk
+              detection. Everything a commander needs to track readiness and
+              act on it.
             </li>
           </ul>
           <p className="text-xs text-neutral-500 border-t border-forge-border pt-4">

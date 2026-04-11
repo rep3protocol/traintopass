@@ -155,7 +155,7 @@ export default function Home() {
                 Platoon
               </h3>
               <p className="text-sm text-neutral-400 leading-relaxed">
-                Up to 60 members. Platoon leaderboard and unit readiness view.
+                Up to 60 members. Platoon leaderboard and shared unit page.
               </p>
             </div>
             <div className="border border-forge-border bg-forge-panel p-6 sm:p-8 flex flex-col gap-3">
@@ -166,8 +166,10 @@ export default function Home() {
                 Company
               </h3>
               <p className="text-sm text-neutral-400 leading-relaxed">
-                Up to 250 members. Commander Snapshot Dashboard, Event Heatmap,
-                At-Risk Roster, and automated risk detection.
+                Up to 250 members. Full command suite: Commander Snapshot
+                Dashboard, Event Performance Heatmap, At-Risk Roster with action
+                buttons, and automated risk detection. Everything a commander
+                needs to track readiness and act on it.
               </p>
             </div>
           </div>
