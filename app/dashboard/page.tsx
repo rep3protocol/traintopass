@@ -276,7 +276,7 @@ export default async function DashboardPage() {
               Critical Zone
             </p>
             <p className="font-heading text-2xl text-white">
-              You're {ptsFromPassing} pts from passing.
+              You&apos;re {ptsFromPassing} pts from passing.
             </p>
             {weakEvents.length > 0 && (
               <p className="text-sm text-neutral-400">
