@@ -12,6 +12,8 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+const RESEND_BATCH_MAX = 100;
+
 function adminEmailOk(email: string | null | undefined): boolean {
   return (
     typeof email === "string" &&
@@ -113,10 +115,17 @@ export async function POST(req: Request) {
 
   const resend = new Resend(resendKey);
   const from = "Train to Pass <noreply@traintopass.com>";
+  const replyTo = "hello@traintopass.com";
   let sent = 0;
   let failed = 0;
 
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const emailArray: {
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+    replyTo: string;
+  }[] = [];
 
   for (const row of recipients) {
     const to = String(row.email).trim();
@@ -126,19 +135,40 @@ export async function POST(req: Request) {
     }
     const first = broadcastRecipientFirstName(row.name, to);
     const html = buildBroadcastEmailHtml(first, message);
+    emailArray.push({ from, to, subject, html, replyTo });
+  }
+
+  for (let i = 0; i < emailArray.length; i += RESEND_BATCH_MAX) {
+    const chunk = emailArray.slice(i, i + RESEND_BATCH_MAX);
     try {
-      const out = await resend.emails.send({
-        from,
-        to,
-        subject,
-        html,
-        replyTo: "hello@traintopass.com",
-      });
-      await delay(250);
-      if (out.error) failed += 1;
-      else sent += 1;
+      const out = await resend.batch.send(chunk);
+      if (out.error) {
+        failed += chunk.length;
+        continue;
+      }
+      const payload = out.data as { data?: unknown } | null;
+      const results = payload?.data;
+      if (!Array.isArray(results)) {
+        failed += chunk.length;
+        continue;
+      }
+      for (const result of results) {
+        if (
+          result &&
+          typeof result === "object" &&
+          "error" in result &&
+          (result as { error?: unknown }).error
+        ) {
+          failed += 1;
+        } else {
+          sent += 1;
+        }
+      }
+      if (results.length < chunk.length) {
+        failed += chunk.length - results.length;
+      }
     } catch {
-      failed += 1;
+      failed += chunk.length;
     }
   }
 
